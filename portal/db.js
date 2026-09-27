@@ -302,12 +302,15 @@ function rowToSession(r) {
 }
 
 function getSessions(userId = null, userName = null, isAdmin = false) {
-  if (isAdmin || (!userId && !userName)) {
+  if (isAdmin) {
     return db.prepare('SELECT * FROM sessions ORDER BY created_at DESC').all().map(rowToSession);
+  }
+  if (!userId && !userName) {
+    return [];
   }
   return db.prepare(
     `SELECT * FROM sessions 
-     WHERE user_id = ? OR (created_by = ? AND created_by != 'Admin' AND created_by != '') OR visibility = 'public' 
+     WHERE (user_id = ? AND user_id != '') OR (created_by = ? AND created_by != 'Admin' AND created_by != '')
      ORDER BY created_at DESC`
   ).all(userId || '', userName || '').map(rowToSession);
 }
@@ -420,9 +423,12 @@ function getTickets({ status = null, limit = 200, userId = null, userName = null
   const where = [];
   const params = [];
   if (status) { where.push('status = ?'); params.push(status); }
-  if (!isAdmin && (userId || userName)) {
-    where.push('(created_by = ? OR user_id = ?)');
-    params.push(userName || '', userId || '');
+  if (!isAdmin) {
+    if (!userId && !userName) {
+      return [];
+    }
+    where.push("((user_id = ? AND user_id != '') OR (created_by = ? AND created_by != 'Administrator' AND created_by != ''))");
+    params.push(userId || '', userName || '');
   }
   if (where.length) sql += ' WHERE ' + where.join(' AND ');
   sql += ' ORDER BY created_at DESC LIMIT ?';
@@ -516,8 +522,11 @@ function getReports({ sessionId = null, verdict = null, limit = 200, userId = nu
   const params = [];
   if (sessionId) { where.push('r.session_id = ?'); params.push(sessionId); }
   if (verdict)   { where.push('r.verdict = ?');   params.push(verdict); }
-  if (!isAdmin && (userId || userName)) {
-    where.push('(s.user_id = ? OR (s.created_by = ? AND s.created_by != "Admin"))');
+  if (!isAdmin) {
+    if (!userId && !userName) {
+      return [];
+    }
+    where.push("((s.user_id = ? AND s.user_id != '') OR (s.created_by = ? AND s.created_by != 'Admin' AND s.created_by != ''))");
     params.push(userId || '', userName || '');
   }
   if (where.length) sql += ' WHERE ' + where.join(' AND ');
@@ -646,15 +655,35 @@ function getStats(userId = null, userName = null, isAdmin = false) {
   }
 
   // Non-admin user: isolate stats to only their sessions & reports
+  if (!userId && !userName) {
+    return {
+      sessions: 0,
+      sessionsActive: 0,
+      activeSessions: 0,
+      reports: 0,
+      devices: 0,
+      last24h: 0,
+      clean: 0,
+      suspicious: 0,
+      detected: 0,
+      flaggedFiles: 0,
+      filesScanned: 0,
+      topFindings: [],
+      byGame: [],
+      totalUsers: 1,
+      flaggedReports: 0,
+    };
+  }
+
   const uId = userId || '';
   const uName = userName || '';
   const mySessions = db.prepare(
-    'SELECT id FROM sessions WHERE user_id = ? OR (created_by = ? AND created_by != "Admin")'
+    "SELECT id FROM sessions WHERE (user_id = ? AND user_id != '') OR (created_by = ? AND created_by != 'Admin' AND created_by != '')"
   ).all(uId, uName).map((s) => s.id);
 
   const sessionCount = mySessions.length;
   const activeSessions = db.prepare(
-    'SELECT COUNT(*) AS c FROM sessions WHERE (user_id = ? OR (created_by = ? AND created_by != "Admin")) AND active = 1'
+    "SELECT COUNT(*) AS c FROM sessions WHERE ((user_id = ? AND user_id != '') OR (created_by = ? AND created_by != 'Admin' AND created_by != '')) AND active = 1"
   ).get(uId, uName).c;
 
   if (sessionCount === 0) {

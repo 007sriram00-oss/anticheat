@@ -17,30 +17,70 @@ const app = express();
 app.disable('x-powered-by');
 app.use(express.json({ limit: '1mb' }));
 
-/* Optional admin password for public deployments.
-   Set ADMIN_PASSWORD=... in the environment and every route (dashboard + API)
-   requires HTTP Basic auth. The agent API (/api/agent/*) stays open — it is
-   already gated by session PINs, and the agent cannot answer a browser prompt.
-   Leave ADMIN_PASSWORD unset for local use (no login). */
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || '';
-if (ADMIN_PASSWORD) {
-  const { timingSafeEqual } = require('crypto');
-  const matches = (given) => {
-    const a = Buffer.from(String(given), 'utf8');
-    const b = Buffer.from(ADMIN_PASSWORD, 'utf8');
-    return a.length === b.length && timingSafeEqual(a, b);
-  };
-  app.use((req, res, next) => {
-    if (req.path.startsWith('/api/agent/')) return next();
-    const header = req.headers.authorization || '';
-    if (header.startsWith('Basic ')) {
-      const decoded = Buffer.from(header.slice(6), 'base64').toString('utf8');
-      const colon = decoded.indexOf(':');
-      if (colon >= 0 && matches(decoded.slice(colon + 1))) return next();
+/* ============================== login sessions ============================== */
+
+const crypto = require('crypto');
+
+/* Local admin account. The login page accepts this username (or its email
+   form) plus the password. ADMIN_PASSWORD is required for public deployments;
+   a development default is used locally and a warning is printed. */
+const ADMIN_USER = (process.env.ADMIN_USER || 'admin').toLowerCase();
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'admin123';
+if (!process.env.ADMIN_PASSWORD) {
+  console.warn('  ! ADMIN_PASSWORD not set — password login accepts "admin/admin123".');
+  console.warn('    Set ADMIN_PASSWORD before exposing the portal.');
+}
+
+// Load optional local auth config (ignored by git for secret protection)
+const AUTH_CONFIG_FILE = path.join(__dirname, 'auth.json');
+if (fs.existsSync(AUTH_CONFIG_FILE)) {
+  try {
+    const raw = fs.readFileSync(AUTH_CONFIG_FILE, 'utf8').replace(/^\uFEFF/, '');
+    const authCfg = JSON.parse(raw);
+    for (const [k, v] of Object.entries(authCfg)) {
+      if (!process.env[k] && v) process.env[k] = v;
     }
-    res.set('WWW-Authenticate', 'Basic realm="Anti-Cheat Portal", charset="UTF-8"');
-    res.status(401).send('Admin password required');
-  });
+  } catch (e) {
+    console.error('Failed to load auth.json:', e.message);
+  }
+}
+
+const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '';
+const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET || '';
+const DISCORD_CLIENT_ID = process.env.DISCORD_CLIENT_ID || '';
+const DISCORD_CLIENT_SECRET = process.env.DISCORD_CLIENT_SECRET || '';
+
+const oauthStates = new Map();   // state -> { provider, to, createdAt }
+const loginAttempts = new Map(); // ip -> { n, resetAt }
+
+function pruneOauthStates() {
+  const now = Date.now();
+  for (const [st, v] of oauthStates) if (now - v.createdAt > 15 * 60 * 1000) oauthStates.delete(st);
+}
+setInterval(pruneOauthStates, 10 * 60 * 1000).unref();
+
+/* Sessions are DB-backed (users + user_sessions tables, 30-day expiry).
+   parseCookies / getBaseUrl live with the original OAuth block further down. */
+function sessionUser(req) {
+  return store.getUserBySessionToken(parseCookies(req).anticheat_session);
+}
+
+function setSessionCookie(res, token) {
+  res.setHeader('Set-Cookie', `anticheat_session=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${30 * 24 * 3600}`);
+}
+
+function pwOk(given) {
+  const a = Buffer.from(String(given || ''), 'utf8');
+  const b = Buffer.from(ADMIN_PASSWORD, 'utf8');
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
+}
+
+function rateLimited(req) {
+  const now = Date.now();
+  const rec = loginAttempts.get(req.ip);
+  if (!rec || now > rec.resetAt) { loginAttempts.set(req.ip, { n: 1, resetAt: now + 60_000 }); return false; }
+  rec.n += 1;
+  return rec.n > 10;
 }
 
 /* Request logger for the system log.
@@ -59,6 +99,20 @@ app.use((req, res, next) => {
     });
   }
   next();
+});
+
+/* Session gate: everything requires a login except the agent API (PIN-gated),
+   the auth endpoints, the login page and static assets (no data in them).
+   Unauthenticated API calls get 401; page loads bounce to the login page
+   with a redirectTo so the user lands where they were headed. */
+const OPEN_PREFIXES = ['/api/agent', '/api/login', '/auth/', '/login.html', '/css/', '/js/', '/icons/', '/favicon'];
+app.use((req, res, next) => {
+  const p = req.path;
+  if (OPEN_PREFIXES.some((x) => p === x || p.startsWith(x))) return next();
+  const user = sessionUser(req);
+  if (user) { req.user = user; return next(); }
+  if (p.startsWith('/api/')) return res.status(401).json({ error: 'Not logged in' });
+  return res.redirect('/login.html?redirectTo=' + encodeURIComponent(req.originalUrl));
 });
 
 app.use('/api/agent', (req, res, next) => {
@@ -295,24 +349,6 @@ app.delete('/api/chat', (_req, res) => {
 
 /* ======================================================= OAuth & Auth ==== */
 
-// Load optional local auth config (ignored by git for secret protection)
-const AUTH_CONFIG_FILE = path.join(__dirname, 'auth.json');
-if (fs.existsSync(AUTH_CONFIG_FILE)) {
-  try {
-    const authCfg = JSON.parse(fs.readFileSync(AUTH_CONFIG_FILE, 'utf8'));
-    for (const [k, v] of Object.entries(authCfg)) {
-      if (!process.env[k] && v) process.env[k] = v;
-    }
-  } catch (e) {
-    console.error('Failed to load auth.json:', e.message);
-  }
-}
-
-const DISCORD_CLIENT_ID = process.env.DISCORD_CLIENT_ID || '';
-const DISCORD_CLIENT_SECRET = process.env.DISCORD_CLIENT_SECRET || '';
-
-const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '';
-const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET || '';
 
 function parseCookies(req) {
   const list = {};
@@ -331,6 +367,16 @@ function getBaseUrl(req) {
   const proto = req.headers['x-forwarded-proto'] || (req.socket.encrypted ? 'https' : 'http');
   const host = req.headers['x-forwarded-host'] || req.headers.host;
   return `${proto}://${host}`;
+}
+
+// Only same-site relative paths may be used as a post-login destination.
+function safeTo(to) {
+  return typeof to === 'string' && to.startsWith('/') && !to.startsWith('//') ? to : '/';
+}
+
+function successDest(rec) {
+  const to = (rec && rec.to) || '/';
+  return to + (to.includes('?') ? '&' : '?') + 'auth=success';
 }
 
 // User info endpoint
@@ -363,13 +409,18 @@ app.get('/auth/logout', (req, res) => {
 app.get('/auth/discord', (req, res) => {
   const base = getBaseUrl(req);
   const redirectUri = `${base}/auth/discord/callback`;
-  const url = `https://discord.com/api/oauth2/authorize?client_id=${encodeURIComponent(DISCORD_CLIENT_ID)}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=identify%20email`;
+  const state = crypto.randomBytes(16).toString('hex');
+  oauthStates.set(state, { provider: 'discord', to: safeTo(req.query.to), createdAt: Date.now() });
+  const url = `https://discord.com/api/oauth2/authorize?client_id=${encodeURIComponent(DISCORD_CLIENT_ID)}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=identify%20email&state=${state}`;
   res.redirect(url);
 });
 
 app.get('/auth/discord/callback', async (req, res) => {
-  const { code, error } = req.query;
-  if (error || !code) return res.redirect('/?auth_error=' + encodeURIComponent(error || 'cancelled'));
+  const { code, state, error } = req.query;
+  const rec = state && oauthStates.get(state);
+  if (state) oauthStates.delete(state);
+  if (error || !code) return res.redirect('/login.html?error=' + encodeURIComponent(error || 'cancelled'));
+  if (!rec || rec.provider !== 'discord') return res.redirect('/login.html?error=invalid_state');
 
   const base = getBaseUrl(req);
   const redirectUri = `${base}/auth/discord/callback`;
@@ -392,7 +443,7 @@ app.get('/auth/discord/callback', async (req, res) => {
     if (!tokenRes.ok) {
       const errTxt = await tokenRes.text();
       store.logEvent('error', 'auth.discord', 'Discord token exchange failed', { error: errTxt });
-      return res.redirect('/?auth_error=' + encodeURIComponent('Discord token exchange failed'));
+      return res.redirect('/login.html?error=' + encodeURIComponent('Discord token exchange failed'));
     }
 
     const tokenData = await tokenRes.json();
@@ -401,7 +452,7 @@ app.get('/auth/discord/callback', async (req, res) => {
     });
 
     if (!userRes.ok) {
-      return res.redirect('/?auth_error=' + encodeURIComponent('Failed to fetch Discord user'));
+      return res.redirect('/login.html?error=' + encodeURIComponent('Failed to fetch Discord user'));
     }
 
     const discordUser = await userRes.json();
@@ -418,11 +469,11 @@ app.get('/auth/discord/callback', async (req, res) => {
     });
 
     const sessionToken = store.createSessionToken(user.id);
-    res.setHeader('Set-Cookie', `anticheat_session=${sessionToken}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${30 * 24 * 3600}`);
-    res.redirect('/?auth=success');
+    setSessionCookie(res, sessionToken);
+    res.redirect(successDest(rec));
   } catch (err) {
     console.error('Discord OAuth error:', err);
-    res.redirect('/?auth_error=' + encodeURIComponent(err.message));
+    res.redirect('/login.html?error=' + encodeURIComponent(err.message));
   }
 });
 
@@ -430,13 +481,18 @@ app.get('/auth/discord/callback', async (req, res) => {
 app.get('/auth/google', (req, res) => {
   const base = getBaseUrl(req);
   const redirectUri = `${base}/auth/google/callback`;
-  const url = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${encodeURIComponent(GOOGLE_CLIENT_ID)}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=openid%20profile%20email&prompt=select_account`;
+  const state = crypto.randomBytes(16).toString('hex');
+  oauthStates.set(state, { provider: 'google', to: safeTo(req.query.to), createdAt: Date.now() });
+  const url = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${encodeURIComponent(GOOGLE_CLIENT_ID)}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=openid%20profile%20email&prompt=select_account&state=${state}`;
   res.redirect(url);
 });
 
 app.get('/auth/google/callback', async (req, res) => {
-  const { code, error } = req.query;
-  if (error || !code) return res.redirect('/?auth_error=' + encodeURIComponent(error || 'cancelled'));
+  const { code, state, error } = req.query;
+  const rec = state && oauthStates.get(state);
+  if (state) oauthStates.delete(state);
+  if (error || !code) return res.redirect('/login.html?error=' + encodeURIComponent(error || 'cancelled'));
+  if (!rec || rec.provider !== 'google') return res.redirect('/login.html?error=invalid_state');
 
   const base = getBaseUrl(req);
   const redirectUri = `${base}/auth/google/callback`;
@@ -459,7 +515,7 @@ app.get('/auth/google/callback', async (req, res) => {
     if (!tokenRes.ok) {
       const errTxt = await tokenRes.text();
       store.logEvent('error', 'auth.google', 'Google token exchange failed', { error: errTxt });
-      return res.redirect('/?auth_error=' + encodeURIComponent('Google token exchange failed'));
+      return res.redirect('/login.html?error=' + encodeURIComponent('Google token exchange failed'));
     }
 
     const tokenData = await tokenRes.json();
@@ -468,7 +524,7 @@ app.get('/auth/google/callback', async (req, res) => {
     });
 
     if (!userRes.ok) {
-      return res.redirect('/?auth_error=' + encodeURIComponent('Failed to fetch Google user profile'));
+      return res.redirect('/login.html?error=' + encodeURIComponent('Failed to fetch Google user profile'));
     }
 
     const googleUser = await userRes.json();
@@ -481,12 +537,47 @@ app.get('/auth/google/callback', async (req, res) => {
     });
 
     const sessionToken = store.createSessionToken(user.id);
-    res.setHeader('Set-Cookie', `anticheat_session=${sessionToken}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${30 * 24 * 3600}`);
-    res.redirect('/?auth=success');
+    setSessionCookie(res, sessionToken);
+    res.redirect(successDest(rec));
   } catch (err) {
     console.error('Google OAuth error:', err);
-    res.redirect('/?auth_error=' + encodeURIComponent(err.message));
+    res.redirect('/login.html?error=' + encodeURIComponent(err.message));
   }
+});
+
+/* =========================================================== auth/login ==== */
+
+// Password login (local admin account). Issues the same DB-backed session
+// cookie as the OAuth flows so the dashboard treats all providers alike.
+app.post('/api/login', (req, res) => {
+  if (rateLimited(req)) {
+    return res.status(429).json({ error: 'Too many attempts — wait a minute and try again.' });
+  }
+  const { email, password } = req.body || {};
+  const raw = String(email || '').trim().toLowerCase();
+  const name = raw.includes('@') ? raw.split('@')[0] : raw;
+  if (!raw || !password) return res.status(400).json({ error: 'Enter your username and password.' });
+  if (name !== ADMIN_USER || !pwOk(password)) {
+    store.logEvent('warn', 'auth.failed', `Failed password sign-in for "${raw.slice(0, 30)}"`, { ip: req.ip });
+    return res.status(401).json({ error: 'Incorrect username or password.' });
+  }
+  const row = store.upsertUser({
+    provider: 'local',
+    providerId: ADMIN_USER,
+    name: ADMIN_USER,
+    email: `${ADMIN_USER}@portal.local`,
+  });
+  const user = {
+    id: row.id, provider: 'local', name: row.name, email: row.email, avatarUrl: row.avatar_url || '',
+  };
+  setSessionCookie(res, store.createSessionToken(user.id));
+  res.json({ authenticated: true, user });
+});
+
+// Lets the login page show a local-dev hint only when the default
+// development password is still active (never on a configured server).
+app.get('/api/login-config', (_req, res) => {
+  res.json({ pwHint: !process.env.ADMIN_PASSWORD, user: ADMIN_USER });
 });
 
 /* ============================================================ download ==== */

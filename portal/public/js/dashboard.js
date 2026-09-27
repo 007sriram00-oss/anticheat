@@ -48,6 +48,11 @@ function esc(v) {
 
 async function api(path, opts) {
   const res = await fetch(path, opts);
+  if (res.status === 401) {
+    // session expired — bounce to the login page and come back afterwards
+    location.href = '/login.html?redirectTo=' + encodeURIComponent(location.pathname + location.search);
+    throw new Error('Not logged in');
+  }
   if (!res.ok) {
     let msg = `HTTP ${res.status}`;
     try { msg = (await res.json()).error || msg; } catch { /* keep */ }
@@ -2014,7 +2019,14 @@ async function checkAuth() {
   try {
     const res = await fetch('/api/me');
     const data = await res.json();
-    currentUser = data.authenticated ? data.user : null;
+    if (!res.ok || !data.authenticated || !data.user) {
+      currentUser = null;
+      updateUserUi();
+      // the dashboard is gated — send a signed-out visitor to the login page
+      location.replace('/login.html?redirectTo=' + encodeURIComponent(location.pathname + location.search));
+      return;
+    }
+    currentUser = data.user;
     updateUserUi();
   } catch {
     currentUser = null;
@@ -2039,7 +2051,10 @@ function updateUserUi() {
       }
     }
     if (nameEl) nameEl.textContent = currentUser.name || 'Player';
-    if (subEl) subEl.textContent = currentUser.provider === 'discord' ? 'Discord Connected' : 'Google Account';
+    if (subEl) {
+      subEl.textContent = currentUser.provider === 'discord' ? 'Discord Connected'
+        : currentUser.provider === 'google' ? 'Google Account' : 'Local account';
+    }
     if (chip) chip.title = `${currentUser.name} (${currentUser.provider}) — Click for options`;
   } else {
     if (topbarBtn) topbarBtn.style.display = 'inline-flex';
@@ -2081,9 +2096,9 @@ function toggleUserMenu(ev) {
   if (popName) popName.textContent = currentUser.name || 'Player';
   if (popEmail) popEmail.textContent = currentUser.email || 'No email shared';
   if (popBadge) {
-    const isDiscord = currentUser.provider === 'discord';
-    popBadge.className = `user-menu-badge ${isDiscord ? 'discord' : 'google'}`;
-    popBadge.textContent = isDiscord ? 'Discord' : 'Google';
+    const prov = currentUser.provider;
+    popBadge.className = `user-menu-badge ${prov === 'discord' || prov === 'google' ? prov : 'local'}`;
+    popBadge.textContent = prov === 'discord' ? 'Discord' : prov === 'google' ? 'Google' : 'Local account';
   }
   if (actionText) actionText.textContent = 'Sign Out';
 
@@ -2464,14 +2479,9 @@ function init() {
       if (currentUser) {
         try {
           await fetch('/auth/logout', { method: 'POST' });
-          currentUser = null;
-          updateUserUi();
-          const pop = $('#user-menu-popover');
-          if (pop) pop.hidden = true;
-          toast('Signed out successfully', 'info');
-        } catch {
-          location.href = '/auth/logout';
-        }
+        } catch { /* cookie still cleared server-side best effort */ }
+        // every page is gated — land back on the login screen
+        location.replace('/login.html');
       } else {
         openLoginModal();
       }

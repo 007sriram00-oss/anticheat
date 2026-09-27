@@ -1,0 +1,529 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Login | Anti-Cheat Portal</title>
+<meta name="robots" content="noindex, nofollow" />
+<style>
+  /* ===== Ocean-style auth tokens ===== */
+  :root {
+    --bg: #090a0b;
+    --panel: #0e0f11;
+    --panel-2: #080b11;
+    --line: rgba(255, 255, 255, 0.125);
+    --line-soft: rgba(255, 255, 255, 0.07);
+    --text: #f6f7f8;
+    --text-2: #a1a1aa;
+    --text-3: #71717a;
+    --blue: #3b82f6;
+    --blue-2: #60a5fa;
+    --red: #ef4444;
+    --green: #22c55e;
+    --radius: 16px;
+    --font: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  body {
+    font-family: var(--font);
+    background: var(--bg);
+    color: var(--text);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    -webkit-font-smoothing: antialiased;
+  }
+  /* soft background glows — same vibe as the dashboard hero */
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    background:
+      radial-gradient(640px 340px at 50% -8%, rgba(59, 130, 246, 0.13), transparent 62%),
+      radial-gradient(460px 300px at 84% 108%, rgba(139, 92, 246, 0.09), transparent 65%);
+    pointer-events: none;
+  }
+  .wrap { position: relative; width: 100%; max-width: 448px; }
+
+  /* ===== card ===== */
+  .card {
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.025), rgba(255, 255, 255, 0));
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 48px 40px;
+    animation: rise 0.4s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  @keyframes rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+  @keyframes shake {
+    10%, 90% { transform: translateX(-2px); }
+    20%, 80% { transform: translateX(4px); }
+    30%, 50%, 70% { transform: translateX(-6px); }
+    40%, 60% { transform: translateX(6px); }
+  }
+  .shake { animation: shake 0.5s both; }
+
+  .mark {
+    width: 56px; height: 56px;
+    display: grid; place-items: center;
+    margin: 0 auto 20px;
+    border-radius: 15px;
+    background: linear-gradient(160deg, rgba(59, 130, 246, 0.22), rgba(59, 130, 246, 0.06));
+    border: 1px solid rgba(59, 130, 246, 0.38);
+    box-shadow: 0 10px 30px -12px rgba(59, 130, 246, 0.5);
+  }
+  .mark svg { width: 28px; height: 28px; stroke: var(--blue-2); }
+
+  .eyebrow {
+    text-align: center;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.16em;
+    color: var(--blue-2);
+    text-transform: uppercase;
+    margin-bottom: 10px;
+  }
+  h1 { text-align: center; font-size: 27px; font-weight: 750; letter-spacing: -0.02em; }
+  .sub {
+    text-align: center;
+    font-size: 13.5px;
+    line-height: 1.6;
+    color: var(--text-2);
+    margin: 10px 0 26px;
+  }
+
+  /* ===== error banner ===== */
+  .banner {
+    display: none;
+    align-items: center;
+    gap: 9px;
+    background: rgba(239, 68, 68, 0.1);
+    border: 1px solid rgba(239, 68, 68, 0.35);
+    color: #fca5a5;
+    font-size: 13px;
+    padding: 11px 13px;
+    border-radius: 11px;
+    margin-bottom: 18px;
+  }
+  .banner.show { display: flex; }
+  .banner svg { flex: none; width: 16px; height: 16px; }
+
+  /* ===== form ===== */
+  form { display: flex; flex-direction: column; gap: 18px; }
+  .field { position: relative; }
+  .field label {
+    display: block;
+    font-size: 12px;
+    font-weight: 650;
+    color: var(--text-3);
+    letter-spacing: 0.02em;
+    margin-bottom: 8px;
+  }
+  .inp {
+    width: 100%;
+    height: 48px;
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 0 14px;
+    font-size: 14px;
+    font-family: var(--font);
+    color: var(--text);
+    outline: none;
+    transition: border-color 0.15s, box-shadow 0.15s, background 0.15s;
+  }
+  .inp::placeholder { color: rgba(161, 161, 170, 0.55); }
+  .inp:focus {
+    border-color: var(--blue);
+    background: #0b0e14;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.18);
+  }
+  .inp.has-eye { padding-right: 46px; }
+  .eye {
+    position: absolute;
+    right: 4px; bottom: 0;
+    height: 48px;
+    width: 42px;
+    display: grid; place-items: center;
+    background: none; border: none;
+    color: var(--text-3);
+    cursor: pointer;
+    border-radius: 8px;
+    transition: color 0.15s;
+  }
+  .eye:hover { color: var(--text); }
+  .eye svg { width: 19px; height: 19px; }
+
+  .caps {
+    display: none;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: #fbbf24;
+    margin-top: 7px;
+  }
+  .caps.on { display: flex; }
+
+  .row-between { display: flex; justify-content: flex-end; margin-top: -6px; }
+  .forgot {
+    font-size: 13px;
+    color: var(--text-2);
+    text-decoration: none;
+    transition: color 0.15s;
+    background: none; border: none; cursor: pointer;
+    font-family: var(--font);
+  }
+  .forgot:hover { color: var(--blue-2); }
+
+  .btn-primary {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: 100%;
+    height: 48px;
+    background: var(--blue);
+    color: #fff;
+    border: none;
+    border-radius: 12px;
+    font-size: 15px;
+    font-weight: 650;
+    font-family: var(--font);
+    cursor: pointer;
+    box-shadow: 0 10px 26px -10px rgba(59, 130, 246, 0.55);
+    transition: filter 0.15s, transform 0.1s;
+  }
+  .btn-primary:hover { filter: brightness(1.1); }
+  .btn-primary:active { transform: scale(0.985); }
+  .btn-primary:disabled { opacity: 0.7; cursor: default; }
+  .btn-primary svg { width: 18px; height: 18px; }
+
+  .spin {
+    width: 18px; height: 18px;
+    border: 2.5px solid rgba(255, 255, 255, 0.35);
+    border-top-color: #fff;
+    border-radius: 50%;
+    animation: rot 0.7s linear infinite;
+  }
+  @keyframes rot { to { transform: rotate(360deg); } }
+
+  /* ===== divider + socials ===== */
+  .divider {
+    position: relative;
+    text-align: center;
+    margin: 24px 0 18px;
+  }
+  .divider::before {
+    content: "";
+    position: absolute;
+    top: 50%; left: 0; right: 0;
+    border-top: 1px solid var(--line-soft);
+  }
+  .divider span {
+    position: relative;
+    background: var(--bg);
+    padding: 0 12px;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-3);
+  }
+  .socials { display: flex; gap: 12px; }
+  .btn-social {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 9px;
+    height: 48px;
+    background: transparent;
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    border-radius: 12px;
+    color: var(--text-2);
+    font-size: 13.5px;
+    font-weight: 600;
+    font-family: var(--font);
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s, border-color 0.15s, transform 0.1s;
+  }
+  .btn-social:hover {
+    background: rgba(255, 255, 255, 0.045);
+    color: var(--text);
+    border-color: rgba(255, 255, 255, 0.3);
+  }
+  .btn-social:active { transform: scale(0.985); }
+  .btn-social svg { width: 19px; height: 19px; }
+
+  .hint {
+    display: none;
+    margin-top: 16px;
+    text-align: center;
+    font-size: 12px;
+    color: var(--text-3);
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px dashed var(--line);
+    border-radius: 10px;
+    padding: 9px 12px;
+  }
+  .hint.show { display: block; }
+  .hint b { color: var(--text-2); font-weight: 650; }
+
+  .switch { margin-top: 22px; text-align: center; font-size: 13px; color: var(--text-3); }
+  .switch a { color: var(--blue-2); text-decoration: none; }
+  .switch a:hover { text-decoration: underline; }
+
+  .foot {
+    margin-top: 22px;
+    text-align: center;
+    font-size: 12px;
+    color: var(--text-3);
+  }
+
+  /* ===== toast ===== */
+  .toasts {
+    position: fixed;
+    right: 20px; bottom: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    z-index: 50;
+  }
+  .toast {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 12px 16px;
+    font-size: 13px;
+    color: var(--text-2);
+    box-shadow: 0 16px 40px -16px rgba(0, 0, 0, 0.8);
+    animation: rise 0.25s both;
+    max-width: 320px;
+  }
+  .toast b { color: var(--text); }
+
+  @media (max-width: 480px) {
+    .card { padding: 36px 22px; }
+    .socials { flex-direction: column; }
+  }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card" id="card">
+      <div class="mark">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/>
+        </svg>
+      </div>
+
+      <p class="eyebrow">Account access</p>
+      <h1>Welcome back.</h1>
+      <p class="sub">Sign in to open your dashboard, scan PINs and reports.</p>
+
+      <div class="banner" id="banner" role="alert">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+          <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+        </svg>
+        <span id="banner-text"></span>
+      </div>
+
+      <form id="login-form" novalidate>
+        <div class="field">
+          <label for="login-email">Email or Username</label>
+          <input class="inp" id="login-email" name="email" type="text"
+                 placeholder="Email or Username" autocomplete="username"
+                 autofocus spellcheck="false" required />
+        </div>
+
+        <div class="field">
+          <label for="login-password">Password</label>
+          <input class="inp has-eye" id="login-password" name="password" type="password"
+                 placeholder="Password" autocomplete="current-password" required />
+          <button class="eye" id="eye-btn" type="button" aria-label="Show password">
+            <svg id="eye-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
+            </svg>
+          </button>
+          <div class="caps" id="caps">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="2" y="6" width="20" height="12" rx="2"/><path d="M6 10h2M10 10h2M14 10h2M18 10h2M8 14h8"/>
+            </svg>
+            Caps Lock is on
+          </div>
+        </div>
+
+        <div class="row-between">
+          <button class="forgot" id="forgot-btn" type="button">Forgot your password?</button>
+        </div>
+
+        <button class="btn-primary" id="submit-btn" type="submit">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="m10 17 5-5-5-5"/><path d="M15 12H3"/><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/>
+          </svg>
+          <span id="submit-label">Login</span>
+        </button>
+      </form>
+
+      <div class="divider"><span>Or continue with</span></div>
+
+      <div class="socials">
+        <button class="btn-social" id="btn-google" type="button">
+          <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <path fill="#4285F4" d="M23.49 12.27c0-.79-.07-1.54-.19-2.27H12v4.51h6.47c-.29 1.48-1.14 2.73-2.4 3.58v3h3.86c2.26-2.09 3.56-5.17 3.56-8.82z"/>
+            <path fill="#34A853" d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.86-3c-1.08.72-2.45 1.16-4.07 1.16-3.13 0-5.78-2.11-6.73-4.96H1.29v3.09C3.26 21.3 7.31 24 12 24z"/>
+            <path fill="#FBBC05" d="M5.27 14.29c-.25-.72-.38-1.49-.38-2.29s.14-1.57.38-2.29V6.62H1.29C.47 8.24 0 10.06 0 12s.47 3.76 1.29 5.38l3.98-3.09z"/>
+            <path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.31 0 3.26 2.7 1.29 6.62l3.98 3.09C6.22 6.86 8.87 4.75 12 4.75z"/>
+          </svg>
+          Google
+        </button>
+        <button class="btn-social" id="btn-discord" type="button">
+          <svg viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+            <path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028 14.09 14.09 0 0 0 1.226-1.994.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z"/>
+          </svg>
+          Discord
+        </button>
+      </div>
+
+      <div class="hint" id="dev-hint"></div>
+
+      <p class="switch">Protected by the tournament anti-cheat portal. <a href="/login.html">Need access?</a></p>
+    </div>
+
+    <p class="foot">© 2026 Tournament Anti-Cheat · localhost portal</p>
+  </div>
+
+  <div class="toasts" id="toasts"></div>
+
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const params = new URLSearchParams(location.search);
+  const redirectTo = (() => {
+    const to = params.get('redirectTo');
+    return to && to.startsWith('/') && !to.startsWith('//') ? to : '/';
+  })();
+
+  const ERRORS = {
+    invalid_state: 'Sign-in was cancelled or expired — please try again.',
+    missing_code: 'The provider did not return a sign-in code — try again.',
+    token_exchange_failed: 'Could not complete sign-in. Check the OAuth redirect URI settings for this portal URL.',
+    profile_failed: 'The provider refused to share your profile.',
+    exchange_error: 'Could not reach the sign-in provider — try again.',
+    access_denied: 'Sign-in was cancelled.',
+    cancelled: 'Sign-in was cancelled.',
+    'Discord token exchange failed': 'Discord rejected the sign-in — check the Discord OAuth redirect URI for this portal URL.',
+    'Google token exchange failed': 'Google rejected the sign-in — check the Google OAuth redirect URI for this portal URL.',
+    'Failed to fetch Discord user': 'Discord did not share your profile.',
+    'Failed to fetch Google user profile': 'Google did not share your profile.',
+  };
+
+  function banner(msg) {
+    $('banner-text').textContent = msg;
+    $('banner').classList.add('show');
+    $('card').classList.remove('shake');
+    void $('card').offsetWidth; // restart shake
+    $('card').classList.add('shake');
+  }
+  function clearBanner() { $('banner').classList.remove('show'); }
+
+  function toast(msg) {
+    const el = document.createElement('div');
+    el.className = 'toast';
+    el.innerHTML = msg;
+    $('toasts').appendChild(el);
+    setTimeout(() => { el.style.opacity = '0'; el.style.transition = 'opacity .3s'; }, 3200);
+    setTimeout(() => el.remove(), 3600);
+  }
+
+  const err = params.get('error');
+  if (err) banner(ERRORS[err] || (err.length <= 90 ? err : 'Sign-in failed — please try again.'));
+
+  // already signed in? go straight to the dashboard
+  fetch('/api/me')
+    .then((r) => (r.ok ? r.json() : null))
+    .then((d) => { if (d && d.authenticated && d.user) location.replace(redirectTo); })
+    .catch(() => {});
+
+  // local development hint, only when the default password is active
+  fetch('/api/login-config').then((r) => r.json()).then((cfg) => {
+    if (cfg.pwHint) {
+      $('dev-hint').innerHTML = `Local dev login — <b>${cfg.user} / admin123</b> (set ADMIN_PASSWORD to remove this hint)`;
+      $('dev-hint').classList.add('show');
+      if (!$('login-email').value) $('login-email').value = cfg.user;
+    }
+  }).catch(() => {});
+
+  // password visibility toggle
+  $('eye-btn').addEventListener('click', () => {
+    const pw = $('login-password');
+    const show = pw.type === 'password';
+    pw.type = show ? 'text' : 'password';
+    $('eye-btn').setAttribute('aria-label', show ? 'Hide password' : 'Show password');
+    $('eye-icon').innerHTML = show
+      ? '<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/>'
+      : '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>';
+  });
+
+  // caps lock detection
+  $('login-password').addEventListener('keyup', (e) => {
+    $('caps').classList.toggle('on', e.getModifierState && e.getModifierState('CapsLock'));
+  });
+  $('login-password').addEventListener('keydown', (e) => {
+    $('caps').classList.toggle('on', e.getModifierState && e.getModifierState('CapsLock'));
+  });
+
+  $('forgot-btn').addEventListener('click', () => {
+    toast('Password resets are handled by the <b>portal operator</b> — ask them in Tickets.');
+  });
+
+  // submit
+  let busy = false;
+  $('login-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if (busy) return;
+    clearBanner();
+    const email = $('login-email').value.trim();
+    const password = $('login-password').value;
+    if (!email || !password) { banner('Enter your username and password.'); return; }
+    busy = true;
+    $('submit-btn').disabled = true;
+    $('submit-label').textContent = 'Signing in…';
+    $('submit-btn').querySelector('svg').style.display = 'none';
+    const spinner = document.createElement('span');
+    spinner.className = 'spin';
+    $('submit-btn').prepend(spinner);
+    try {
+      const res = await fetch('/api/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        $('submit-label').textContent = 'Welcome back ✓';
+        setTimeout(() => location.replace(redirectTo), 350);
+        return;
+      }
+      banner(data.error || 'Sign-in failed.');
+      $('login-password').value = '';
+      $('login-password').focus();
+    } catch {
+      banner('Cannot reach the portal server.');
+    }
+    busy = false;
+    $('submit-btn').disabled = false;
+    spinner.remove();
+    $('submit-btn').querySelector('svg').style.display = '';
+    $('submit-label').textContent = 'Login';
+  });
+
+  // providers — keep the redirect target through the OAuth round trip
+  const to = encodeURIComponent(redirectTo);
+  $('btn-google').addEventListener('click', () => { location.href = `/auth/google?to=${to}`; });
+  $('btn-discord').addEventListener('click', () => { location.href = `/auth/discord?to=${to}`; });
+})();
+</script>
+</body>
+</html>

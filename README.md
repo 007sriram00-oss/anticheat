@@ -172,8 +172,9 @@ Evergreen Runtime" from Microsoft).
    - Sign the EXE with a code-signing certificate (recommended for real tournaments), or
    - Have players click *More info → Run anyway*, or
    - Distribute through your tournament platform with instructions.
-2. **Local use** — by default the portal binds to `127.0.0.1` only: it is not
-   exposed to the network.
+2. **Local use** — the portal always sits behind its **login page**
+   (`/login.html`, username `admin`, local default password `admin123`).
+   To keep it off the LAN entirely, start it with `HOST=127.0.0.1`.
 
 ## 🌍 Public deployment (24/7, free)
 
@@ -185,11 +186,17 @@ Summary of the environment switches:
 
 | Variable | Local (default) | Public server |
 |---|---|---|
-| `HOST` | `127.0.0.1` | `0.0.0.0` |
+| `HOST` | `0.0.0.0` (set `127.0.0.1` to stay LAN-invisible) | `0.0.0.0` |
 | `PORT` | `3000` | `3000` |
-| `ADMIN_PASSWORD` | unset → no login | **required** → HTTP Basic auth on dashboard + API |
+| `ADMIN_PASSWORD` | unset → login page uses dev default `admin123` | **required** → login page password (`admin` + this) |
+| `ADMIN_USER` | `admin` | login username |
+| `GOOGLE_CLIENT_ID` / `DISCORD_CLIENT_ID` (+ `_SECRET`) | built-in dev apps | your OAuth apps for the public URL |
+| `PUBLIC_URL` | derived from the request | `https://your.domain` behind a proxy (OAuth callbacks) |
 | `AGENT_FILE` | auto-detected | path to the agent ZIP, if stored elsewhere |
 
+The portal is **always gated**: every page and API needs a session from the
+login page (`admin` + `ADMIN_PASSWORD`, or **Continue with Google / Discord** —
+register the `/auth/<provider>/callback` redirect URIs, see DEPLOY.md Step 6b).
 The agent API (`/api/agent/*`) stays open in both modes — it is gated by
 session PINs.
 

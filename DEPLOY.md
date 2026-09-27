@@ -93,8 +93,9 @@ HOST=0.0.0.0 PORT=3000 ADMIN_PASSWORD='ChangeMe_123' node server.js
 # → http://0.0.0.0:3000
 ```
 
-Open `http://<PUBLIC_IP>:3000` in your browser — you should get a password
-prompt, then the dashboard. Ctrl+C stops the smoke test.
+Open `http://<PUBLIC_IP>:3000` in your browser — you should land on the
+**login page** (`/login.html`). Sign in with username `admin` and the
+`ADMIN_PASSWORD` you set, then you get the dashboard. Ctrl+C stops the smoke test.
 
 ## Step 5 — Make it run 24/7 (systemd, auto-restart)
 
@@ -139,17 +140,48 @@ sudo journalctl -u anticheat -f      # live logs
 
 | What | How |
 |---|---|
-| Dashboard | `http://<PUBLIC_IP>:3000` (browser asks for the password; username can be anything, e.g. `admin`) |
+| Dashboard | `http://<PUBLIC_IP>:3000` → redirects to the login page. Username `admin` (or `admin@anything`), password = `ADMIN_PASSWORD` |
+| Social sign-in | "Continue with Google / Discord" on the login page — register the redirect URIs first (next section) |
 | Share a pin | Create Pin in the dashboard → give players the PIN + the **Download** page link |
 | Players run the agent | `AntiCheatAgent.exe --portal http://<PUBLIC_IP>:3000` or edit `agent.config.json` |
 | Unattended scan | add `--pin XXXX-XXXX --player "Name" --auto` |
+
+## Step 6b — Google / Discord sign-in (optional but recommended)
+
+The login page also offers **Continue with Google** and **Continue with Discord**.
+The OAuth client IDs are already wired into `server.js` (override with
+`GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` / `DISCORD_CLIENT_ID` /
+`DISCORD_CLIENT_SECRET` env vars). For the sign-in buttons to work against your
+public URL, register the redirect URIs with each provider:
+
+| Provider | Where to add the URI |
+|---|---|
+| Google | [Google Cloud Console](https://console.cloud.google.com/apis/credentials) → your OAuth client → *Authorized redirect URIs* |
+| Discord | [Discord Developer Portal](https://discord.com/developers/applications) → your app → OAuth2 → *Redirects* |
+
+Add **both** of these (replace `<PUBLIC_IP>` with your server address, keep
+port 3000 unless you put Caddy in front — then use the HTTPS URL):
+
+```
+http://<PUBLIC_IP>:3000/auth/google/callback
+http://<PUBLIC_IP>:3000/auth/discord/callback
+```
+
+While testing locally also add the loopback variants
+(`http://127.0.0.1:3000/auth/.../callback` and `http://localhost:3000/auth/.../callback`).
+Until the URIs are registered the buttons still open the provider, which will
+show a *redirect URI mismatch* error — password login always works regardless.
 
 ---
 
 ## 🔒 Security notes (read these)
 
-- **`ADMIN_PASSWORD` is the only thing standing between the internet and your
-  portal.** Pick something long. Without it the server is completely open.
+- **The login page (`ADMIN_PASSWORD`) is the only thing standing between the
+  internet and your portal.** Pick something long — without it the password
+  login falls back to `admin/admin123` and a warning is printed at startup.
+- Sign-ins become **30-day session cookies** (stored in the portal database);
+  sign out from the user chip in the sidebar. Password attempts are rate-limited
+  (10/minute per IP).
 - The agent API (`/api/agent/validate|report`) intentionally stays open — it is
   gated by session PINs (the agent cannot answer a browser login prompt).
 - Plain HTTP means the password and reports travel unencrypted. Acceptable for
@@ -208,10 +240,11 @@ dotnet publish agent\AntiCheatAgent\AntiCheatAgent.csproj -c Release -r win-x64 
 
 | | Local (default) | Public server |
 |---|---|---|
-| Bind address | `127.0.0.1` (LAN-invisible) | `HOST=0.0.0.0` |
-| Login | none | `ADMIN_PASSWORD` set → Basic auth |
+| Bind address | default `0.0.0.0` — set `HOST=127.0.0.1` to stay LAN-invisible | `HOST=0.0.0.0` |
+| Login | login page: `admin` + `ADMIN_PASSWORD` (local default `admin123` + dev hint) | same — set a strong `ADMIN_PASSWORD` |
+| Sign-in options | Google / Discord buttons need redirect URIs registered (Step 6b) | same, with the public URL's callback URIs |
 | Download page | serves the ZIP build | same |
-| Agent default portal | `http://127.0.0.1:3000` | `--portal http://<IP>:3000` |
+| Agent portal | `agent.config.json` or `--portal http://127.0.0.1:3000` | `--portal http://<IP>:3000` |
 
 ---
 

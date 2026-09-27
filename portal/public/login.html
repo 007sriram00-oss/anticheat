@@ -256,19 +256,7 @@
   .btn-social:active { transform: scale(0.985); }
   .btn-social svg { width: 19px; height: 19px; }
 
-  .hint {
-    display: none;
-    margin-top: 16px;
-    text-align: center;
-    font-size: 12px;
-    color: var(--text-3);
-    background: rgba(255, 255, 255, 0.03);
-    border: 1px dashed var(--line);
-    border-radius: 10px;
-    padding: 9px 12px;
-  }
-  .hint.show { display: block; }
-  .hint b { color: var(--text-2); font-weight: 650; }
+
 
   .switch { margin-top: 22px; text-align: center; font-size: 13px; color: var(--text-3); }
   .switch a { color: var(--blue-2); text-decoration: none; }
@@ -386,7 +374,7 @@
         </button>
       </div>
 
-      <div class="hint" id="dev-hint"></div>
+
 
       <p class="switch">Protected by the tournament anti-cheat portal. <a href="/login.html">Need access?</a></p>
     </div>
@@ -446,14 +434,7 @@
     .then((d) => { if (d && d.authenticated && d.user) location.replace(redirectTo); })
     .catch(() => {});
 
-  // local development hint, only when the default password is active
-  fetch('/api/login-config').then((r) => r.json()).then((cfg) => {
-    if (cfg.pwHint) {
-      $('dev-hint').innerHTML = `Local dev login — <b>${cfg.user} / admin123</b> (set ADMIN_PASSWORD to remove this hint)`;
-      $('dev-hint').classList.add('show');
-      if (!$('login-email').value) $('login-email').value = cfg.user;
-    }
-  }).catch(() => {});
+
 
   // password visibility toggle
   $('eye-btn').addEventListener('click', () => {

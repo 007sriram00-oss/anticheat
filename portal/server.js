@@ -21,16 +21,6 @@ app.use(express.json({ limit: '1mb' }));
 
 const crypto = require('crypto');
 
-/* Local admin account. The login page accepts this username (or its email
-   form) plus the password. ADMIN_PASSWORD is required for public deployments;
-   a development default is used locally and a warning is printed. */
-const ADMIN_USER = (process.env.ADMIN_USER || 'admin').toLowerCase();
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'admin123';
-if (!process.env.ADMIN_PASSWORD) {
-  console.warn('  ! ADMIN_PASSWORD not set — password login accepts "admin/admin123".');
-  console.warn('    Set ADMIN_PASSWORD before exposing the portal.');
-}
-
 // Load optional local auth config (ignored by git for secret protection)
 const AUTH_CONFIG_FILE = path.join(__dirname, 'auth.json');
 if (fs.existsSync(AUTH_CONFIG_FILE)) {
@@ -44,6 +34,10 @@ if (fs.existsSync(AUTH_CONFIG_FILE)) {
     console.error('Failed to load auth.json:', e.message);
   }
 }
+
+/* Local admin account. Accepts username 'sriram@1242' and password 'sriram@123' */
+const ADMIN_USER = (process.env.ADMIN_USER || 'sriram@1242').toLowerCase();
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'sriram@123';
 
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '';
 const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET || '';
@@ -364,8 +358,11 @@ function parseCookies(req) {
 
 function getBaseUrl(req) {
   if (process.env.PUBLIC_URL) return process.env.PUBLIC_URL.replace(/\/$/, '');
+  const host = req.headers['x-forwarded-host'] || req.headers.host || 'localhost:3000';
+  if (host.includes('onrender.com') || host.includes('render.com')) {
+    return `https://${host}`;
+  }
   const proto = req.headers['x-forwarded-proto'] || (req.socket.encrypted ? 'https' : 'http');
-  const host = req.headers['x-forwarded-host'] || req.headers.host;
   return `${proto}://${host}`;
 }
 
@@ -555,17 +552,22 @@ app.post('/api/login', (req, res) => {
   }
   const { email, password } = req.body || {};
   const raw = String(email || '').trim().toLowerCase();
-  const name = raw.includes('@') ? raw.split('@')[0] : raw;
   if (!raw || !password) return res.status(400).json({ error: 'Enter your username and password.' });
-  if (name !== ADMIN_USER || !pwOk(password)) {
+
+  const adminTarget = ADMIN_USER.toLowerCase();
+  const isMatch = (raw === adminTarget) ||
+                  (raw === adminTarget.split('@')[0]) ||
+                  (raw.replace(/@portal\.local$/, '') === adminTarget);
+
+  if (!isMatch || !pwOk(password)) {
     store.logEvent('warn', 'auth.failed', `Failed password sign-in for "${raw.slice(0, 30)}"`, { ip: req.ip });
     return res.status(401).json({ error: 'Incorrect username or password.' });
   }
   const row = store.upsertUser({
     provider: 'local',
-    providerId: ADMIN_USER,
-    name: ADMIN_USER,
-    email: `${ADMIN_USER}@portal.local`,
+    providerId: adminTarget,
+    name: 'Sriram (Admin)',
+    email: adminTarget.includes('@') && adminTarget.includes('.') ? adminTarget : `${adminTarget}@portal.local`,
   });
   const user = {
     id: row.id, provider: 'local', name: row.name, email: row.email, avatarUrl: row.avatar_url || '',
@@ -574,10 +576,9 @@ app.post('/api/login', (req, res) => {
   res.json({ authenticated: true, user });
 });
 
-// Lets the login page show a local-dev hint only when the default
-// development password is still active (never on a configured server).
+// Login config endpoint — do not expose dev hint
 app.get('/api/login-config', (_req, res) => {
-  res.json({ pwHint: !process.env.ADMIN_PASSWORD, user: ADMIN_USER });
+  res.json({ pwHint: false });
 });
 
 /* ============================================================ download ==== */

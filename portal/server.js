@@ -151,7 +151,7 @@ app.use((req, res, next) => {
    the auth endpoints, the login page and static assets (no data in them).
    Unauthenticated API calls get 401; page loads bounce to the login page
    with a redirectTo so the user lands where they were headed. */
-const OPEN_PREFIXES = ['/api/agent', '/api/login', '/api/login-config', '/api/me', '/auth/', '/login.html', '/css/', '/js/', '/icons/', '/favicon', '/download', '/app-icon.png', '/AntiCheat.exe', '/downloads/'];
+const OPEN_PREFIXES = ['/api/agent', '/api/login', '/api/login-config', '/api/me', '/api/virustotal', '/auth/', '/login.html', '/css/', '/js/', '/icons/', '/favicon', '/download', '/app-icon.png', '/AntiCheat.exe', '/downloads/'];
 app.use((req, res, next) => {
   const p = req.path;
   if (OPEN_PREFIXES.some((x) => p === x || p.startsWith(x))) return next();
@@ -377,6 +377,205 @@ app.delete('/api/detections/:id', (req, res) => {
   if (!isAdmin(user)) return res.status(403).json({ error: 'Admin only' });
   if (!store.deleteDetection(req.params.id)) return res.status(404).json({ error: 'Result not found' });
   res.json({ ok: true });
+});
+
+/* ========================================================== virustotal ==== */
+
+app.get('/api/virustotal/check', async (req, res) => {
+  const hash = String(req.query.hash || '').trim().toLowerCase();
+  if (!hash || !/^[a-f0-9]{32,64}$/.test(hash)) {
+    return res.status(400).json({ error: 'Valid SHA-256, SHA-1 or MD5 hash required' });
+  }
+
+  const permalink = `https://www.virustotal.com/gui/file/${hash}`;
+  const vtApiKey = process.env.VIRUSTOTAL_API_KEY || '';
+
+  if (!vtApiKey) {
+    return res.json({
+      configured: false,
+      hash,
+      permalink,
+      message: 'VirusTotal API key not configured on server. Direct link provided.',
+    });
+  }
+
+  try {
+    const ctrl = new AbortController();
+    const timeout = setTimeout(() => ctrl.abort(), 6000);
+    const vtRes = await fetch(`https://www.virustotal.com/api/v3/files/${hash}`, {
+      headers: { 'x-apikey': vtApiKey },
+      signal: ctrl.signal,
+    });
+    clearTimeout(timeout);
+
+    if (vtRes.status === 404) {
+      return res.json({
+        configured: true,
+        found: false,
+        hash,
+        permalink,
+        message: 'Hash not seen yet on VirusTotal.',
+      });
+    }
+
+    if (!vtRes.ok) {
+      return res.json({ configured: true, error: `VirusTotal returned HTTP ${vtRes.status}`, permalink });
+    }
+
+    const vtData = await vtRes.json();
+    const attrs = vtData?.data?.attributes || {};
+    const stats = attrs.last_analysis_stats || {};
+    const malicious = stats.malicious || 0;
+    const suspicious = stats.suspicious || 0;
+    const harmless = stats.harmless || 0;
+    const undetected = stats.undetected || 0;
+    const total = malicious + suspicious + harmless + undetected;
+
+    const results = attrs.last_analysis_results || {};
+    const engines = {};
+    for (const [engine, result] of Object.entries(results)) {
+      if (result.category === 'malicious' || result.category === 'suspicious') {
+        engines[engine] = {
+          category: result.category,
+          result: result.result || 'Malicious',
+        };
+      }
+    }
+
+    res.json({
+      configured: true,
+      found: true,
+      hash,
+      permalink,
+      ratio: `${malicious}/${total || 72}`,
+      malicious,
+      suspicious,
+      harmless,
+      undetected,
+      total,
+      reputation: attrs.reputation || 0,
+      tags: attrs.tags || [],
+      meaningfulName: attrs.meaningful_name || '',
+      typeDescription: attrs.type_description || '',
+      engines,
+    });
+  } catch (err) {
+    res.json({ configured: true, error: err.message, permalink });
+  }
+});
+
+app.post('/api/virustotal/url', async (req, res) => {
+  const rawUrl = String(req.body?.url || '').trim();
+  if (!rawUrl) return res.status(400).json({ error: 'URL is required' });
+
+  let parsed;
+  try {
+    parsed = new URL(rawUrl.startsWith('http') ? rawUrl : 'https://' + rawUrl);
+  } catch {
+    return res.status(400).json({ error: 'Invalid URL format' });
+  }
+
+  const hostname = parsed.hostname.toLowerCase();
+  const full = parsed.toString();
+
+  const threatMatches = [];
+  let verdict = 'clean';
+  let threatType = 'Clean / Informational URL';
+
+  if (/discord(app)?\.com\/api\/webhooks\//i.test(full)) {
+    verdict = 'detected';
+    threatType = 'Discord Webhook Exfiltration (Token/Credential Stealer)';
+    threatMatches.push({
+      engine: 'AntiCheat URL Intel',
+      threat: 'Exfiltration.DiscordWebhook',
+      details: 'Discord webhook URL used to upload stolen credentials or tokens.',
+    });
+  } else if (/api\.telegram\.org\/bot/i.test(full)) {
+    verdict = 'detected';
+    threatType = 'Telegram Bot Exfiltration / C2 Channel';
+    threatMatches.push({
+      engine: 'AntiCheat URL Intel',
+      threat: 'Backdoor.TelegramC2',
+      details: 'Telegram bot endpoint used for unauthorized data exfiltration or remote control.',
+    });
+  } else if (/pastebin\.com\/raw\/|raw\.githubusercontent\.com\/|rentry\.co\//i.test(full)) {
+    verdict = 'suspicious';
+    threatType = 'Remote Payload / Raw Dropper Script';
+    threatMatches.push({
+      engine: 'AntiCheat URL Intel',
+      threat: 'Suspicious.RawDropper',
+      details: 'Direct raw text/code hosting service frequently used to fetch stage-2 payloads.',
+    });
+  } else if (/\.(xyz|top|ru|onion|to|cc|tk|ml|gq|cf)$/i.test(hostname)) {
+    verdict = 'suspicious';
+    threatType = 'High-Risk TLD / Suspicious Domain';
+    threatMatches.push({
+      engine: 'AntiCheat URL Intel',
+      threat: 'Domain.HighRiskTLD',
+      details: `Domain uses high-risk TLD (.${hostname.split('.').pop()}) with frequent malware association.`,
+    });
+  } else if (/ngrok.*\.app|ngrok\.io|portmap\.io|duckdns\.org|hopto\.org/i.test(hostname)) {
+    verdict = 'suspicious';
+    threatType = 'Dynamic DNS / Tunneling C2';
+    threatMatches.push({
+      engine: 'AntiCheat URL Intel',
+      threat: 'Network.TunnelingEndpoint',
+      details: 'Dynamic reverse tunnel often used by RATs/stealers to hide C2 servers.',
+    });
+  } else if (/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(hostname)) {
+    verdict = 'suspicious';
+    threatType = 'Direct IP Address (No Domain Name)';
+    threatMatches.push({
+      engine: 'AntiCheat URL Intel',
+      threat: 'Network.DirectIPEndpoint',
+      details: 'Connection to raw IP endpoint without domain name resolution.',
+    });
+  }
+
+  const permalink = `https://www.virustotal.com/gui/search/${encodeURIComponent(full)}`;
+  const vtApiKey = process.env.VIRUSTOTAL_API_KEY || '';
+  let vtData = null;
+
+  if (vtApiKey) {
+    try {
+      const urlId = Buffer.from(full).toString('base64').replace(/=/g, '');
+      const ctrl = new AbortController();
+      const timeout = setTimeout(() => ctrl.abort(), 6000);
+      const vtRes = await fetch(`https://www.virustotal.com/api/v3/urls/${urlId}`, {
+        headers: { 'x-apikey': vtApiKey },
+        signal: ctrl.signal,
+      });
+      clearTimeout(timeout);
+      if (vtRes.ok) {
+        const json = await vtRes.json();
+        const stats = json?.data?.attributes?.last_analysis_stats || {};
+        if ((stats.malicious || 0) > 0) {
+          verdict = 'detected';
+          threatType = `VirusTotal Flagged (${stats.malicious} engines)`;
+        } else if ((stats.suspicious || 0) > 0 && verdict === 'clean') {
+          verdict = 'suspicious';
+        }
+        vtData = {
+          malicious: stats.malicious || 0,
+          suspicious: stats.suspicious || 0,
+          harmless: stats.harmless || 0,
+          total: (stats.malicious || 0) + (stats.suspicious || 0) + (stats.harmless || 0) + (stats.undetected || 0),
+        };
+      }
+    } catch { /* proceed with internal verdict */ }
+  }
+
+  res.json({
+    url: full,
+    domain: hostname,
+    protocol: parsed.protocol,
+    verdict,
+    threatType,
+    threatMatches,
+    permalink,
+    vt: vtData,
+    checkedAt: new Date().toISOString(),
+  });
 });
 
 /* ============================================================= tickets ==== */

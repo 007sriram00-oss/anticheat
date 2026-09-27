@@ -230,12 +230,15 @@ app.post('/api/sessions', (req, res) => {
   const { name, game, expiresInHours, note, visibility } = req.body || {};
   if (!name || !name.trim()) return res.status(400).json({ error: 'Session name is required' });
   if (!game || !game.trim()) return res.status(400).json({ error: 'Game is required' });
+  const user = req.user || sessionUser(req);
   const session = store.createSession({
     name: name.trim().slice(0, 80),
     game: game.trim().slice(0, 60),
     expiresInHours: Number(expiresInHours) || 0,
     note: String(note || '').slice(0, 300),
     visibility: visibility === 'public' ? 'public' : 'private',
+    userId: user ? user.id : '',
+    createdBy: user ? (user.name || user.email || 'Admin') : 'Admin',
   });
   res.status(201).json(session);
 });

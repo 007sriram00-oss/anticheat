@@ -59,6 +59,8 @@
   <symbol id="i-upload" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/></symbol>
   <symbol id="i-message" viewBox="0 0 24 24"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></symbol>
   <symbol id="i-hash" viewBox="0 0 24 24"><path d="M4 9h16M4 15h16M10 3L8 21M16 3l-2 18"/></symbol>
+  <symbol id="i-share" viewBox="0 0 24 24"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></symbol>
+  <symbol id="i-link" viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></symbol>
 </svg>
 
 <div class="app">
@@ -282,6 +284,18 @@
         </select>
       </div>
 
+      <div class="opt-card" style="margin-top:14px;background:rgba(59,130,246,0.06);border-color:rgba(59,130,246,0.25)">
+        <span class="opt-ico blue"><svg class="ico" width="15" height="15"><use href="#i-download"/></svg></span>
+        <div class="opt-txt">
+          <b>Anti-Cheat Agent EXE</b>
+          <span>Players need this EXE to scan and enter this PIN.</span>
+        </div>
+        <div style="display:flex;gap:6px;flex-shrink:0">
+          <a href="/download/agent" class="btn sm primary" download style="text-decoration:none"><svg class="ico" width="13" height="13"><use href="#i-download"/></svg> Download</a>
+          <button type="button" class="btn sm ghost" id="btn-copy-agent-dl" title="Copy Agent download link"><svg class="ico" width="13" height="13"><use href="#i-copy"/></svg> Link</button>
+        </div>
+      </div>
+
       <p class="hint">Players receive the generated PIN with the agent EXE. The agent validates the PIN, shows a consent screen, runs the scan and uploads its report here.</p>
 
       <div class="modal-foot">
@@ -289,6 +303,56 @@
         <button type="submit" class="btn primary"><svg class="ico" width="15" height="15"><use href="#i-plus"/></svg> Create Pin</button>
       </div>
     </form>
+  </div>
+</div>
+
+<!-- ==================== pin created success modal ==================== -->
+<div class="modal-backdrop" id="modal-pin-success" hidden>
+  <div class="modal modal-pin" style="max-width:480px">
+    <div class="np-head">
+      <span class="np-ico" style="background:rgba(34,197,94,0.15);color:#22c55e">✓</span>
+      <div class="np-titles">
+        <div class="np-kicker" style="color:#22c55e">Pin Generated</div>
+        <h2 id="suc-pin-game">Ready to Scan</h2>
+      </div>
+      <button type="button" class="icon-btn" data-close>✕</button>
+    </div>
+
+    <div style="text-align:center;padding:18px 12px;background:rgba(255,255,255,0.02);border:1px dashed var(--line);border-radius:12px;margin:14px 0">
+      <div style="font-size:11px;color:var(--text-3);text-transform:uppercase;letter-spacing:.12em;margin-bottom:6px">Session PIN</div>
+      <div id="suc-pin-code" style="font-size:32px;font-family:monospace;font-weight:800;letter-spacing:.12em;color:#60a5fa">----</div>
+      <button type="button" class="btn sm ghost" id="btn-copy-suc-pin" style="margin-top:10px">
+        <svg class="ico" width="13" height="13"><use href="#i-copy"/></svg> Copy PIN
+      </button>
+    </div>
+
+    <div class="np-label">Share with Players</div>
+    <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:20px">
+      <div class="opt-card" style="align-items:center">
+        <span class="opt-ico blue"><svg class="ico" width="15" height="15"><use href="#i-download"/></svg></span>
+        <div class="opt-txt">
+          <b>Download Agent EXE</b>
+          <span>Download client setup package to send via Discord/Telegram.</span>
+        </div>
+        <a href="/download/agent" class="btn sm primary" download style="text-decoration:none;flex-shrink:0"><svg class="ico" width="13" height="13"><use href="#i-download"/></svg> Download</a>
+      </div>
+
+      <div class="opt-card" style="align-items:center">
+        <span class="opt-ico green"><svg class="ico" width="15" height="15"><use href="#i-link"/></svg></span>
+        <div class="opt-txt">
+          <b>Copy Player Instructions &amp; Link</b>
+          <span>Copies instructions with direct download link &amp; PIN.</span>
+        </div>
+        <button type="button" class="btn sm ghost" id="btn-copy-suc-invite" style="flex-shrink:0">
+          <svg class="ico" width="13" height="13"><use href="#i-copy"/></svg> Copy Invite
+        </button>
+      </div>
+    </div>
+
+    <div class="modal-foot">
+      <button type="button" class="btn ghost" data-close>Close</button>
+      <button type="button" class="btn primary" id="btn-suc-view-sessions">View in Sessions →</button>
+    </div>
   </div>
 </div>
 

@@ -127,6 +127,79 @@ function ensureColumn(table, column, definition) {
 ensureColumn('reports', 'files_json', "TEXT DEFAULT '[]'");
 ensureColumn('reports', 'av_json', "TEXT DEFAULT '{}'");
 ensureColumn('sessions', 'visibility', "TEXT DEFAULT 'private'");
+ensureColumn('sessions', 'user_id', "TEXT DEFAULT ''");
+ensureColumn('sessions', 'created_by', "TEXT DEFAULT ''");
+
+/* ------------------------------------------------ state backup & persistence */
+
+const STATE_BACKUP_FILE = path.join(DATA_DIR, 'portal_state.json');
+
+function backupState() {
+  try {
+    const state = {
+      sessions: db.prepare('SELECT * FROM sessions').all(),
+      users: db.prepare('SELECT * FROM users').all(),
+      user_sessions: db.prepare('SELECT * FROM user_sessions').all(),
+      tickets: db.prepare('SELECT * FROM tickets').all(),
+      settings: db.prepare('SELECT * FROM settings').all(),
+    };
+    fs.writeFileSync(STATE_BACKUP_FILE, JSON.stringify(state, null, 2), 'utf8');
+  } catch (err) {
+    console.error('Failed to backup portal state:', err.message);
+  }
+}
+
+function restoreState() {
+  if (!fs.existsSync(STATE_BACKUP_FILE)) return;
+  try {
+    const raw = fs.readFileSync(STATE_BACKUP_FILE, 'utf8');
+    const state = JSON.parse(raw);
+
+    if (Array.isArray(state.users)) {
+      for (const u of state.users) {
+        db.prepare(`
+          INSERT INTO users (id, provider, provider_id, name, email, avatar_url, created_at, last_login)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+          ON CONFLICT(provider, provider_id) DO UPDATE SET last_login = excluded.last_login
+        `).run(u.id, u.provider, u.provider_id, u.name, u.email || '', u.avatar_url || '', u.created_at || nowIso(), u.last_login || nowIso());
+      }
+    }
+
+    if (Array.isArray(state.user_sessions)) {
+      for (const s of state.user_sessions) {
+        db.prepare(`
+          INSERT INTO user_sessions (token, user_id, created_at, expires_at)
+          VALUES (?, ?, ?, ?)
+          ON CONFLICT(token) DO NOTHING
+        `).run(s.token, s.user_id, s.created_at, s.expires_at);
+      }
+    }
+
+    if (Array.isArray(state.sessions)) {
+      for (const s of state.sessions) {
+        db.prepare(`
+          INSERT INTO sessions (id, name, game, pin, created_at, expires_at, active, note, visibility, user_id, created_by)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          ON CONFLICT(id) DO NOTHING
+        `).run(s.id, s.name, s.game, s.pin, s.created_at, s.expires_at, s.active ?? 1, s.note || '', s.visibility || 'private', s.user_id || '', s.created_by || 'Admin');
+      }
+    }
+
+    if (Array.isArray(state.settings)) {
+      for (const st of state.settings) {
+        db.prepare(`
+          INSERT INTO settings (key, value) VALUES (?, ?)
+          ON CONFLICT(key) DO UPDATE SET value = excluded.value
+        `).run(st.key, st.value);
+      }
+    }
+  } catch (err) {
+    console.error('Failed to restore portal state:', err.message);
+  }
+}
+
+// Restore state from file if present
+restoreState();
 
 /* ---------------------------------------------------------------- helpers */
 
@@ -180,7 +253,7 @@ function safeJson(text, fallback) {
 
 /* ---------------------------------------------------------------- sessions */
 
-function createSession({ name, game, expiresInHours = 0, note = '', visibility = 'private' }) {
+function createSession({ name, game, expiresInHours = 0, note = '', visibility = 'private', userId = '', createdBy = '' }) {
   const pin = generatePin();
   const createdAt = nowIso();
   const expiresAt = expiresInHours > 0
@@ -188,10 +261,11 @@ function createSession({ name, game, expiresInHours = 0, note = '', visibility =
     : null;
   const sessionId = id();
   db.prepare(
-    `INSERT INTO sessions (id, name, game, pin, created_at, expires_at, active, note, visibility)
-     VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?)`
-  ).run(sessionId, name, game, pin, createdAt, expiresAt, note, visibility === 'public' ? 'public' : 'private');
-  logEvent('success', 'session.created', `Session "${name}" created for ${game}`, { sessionId, game, visibility });
+    `INSERT INTO sessions (id, name, game, pin, created_at, expires_at, active, note, visibility, user_id, created_by)
+     VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?)`
+  ).run(sessionId, name, game, pin, createdAt, expiresAt, note, visibility === 'public' ? 'public' : 'private', userId, createdBy || 'Admin');
+  logEvent('success', 'session.created', `Session "${name}" created for ${game}`, { sessionId, game, visibility, createdBy });
+  backupState();
   return getSessionById(sessionId);
 }
 
@@ -217,6 +291,8 @@ function rowToSession(r) {
     active: !!r.active && !expired,
     note: r.note,
     visibility: r.visibility === 'public' ? 'public' : 'private',
+    userId: r.user_id || '',
+    createdBy: r.created_by || 'Admin',
     players,
     reportCount,
     flaggedCount,
@@ -242,6 +318,7 @@ function deleteSession(sessionId) {
   db.prepare('DELETE FROM reports WHERE session_id = ?').run(sessionId);
   db.prepare('DELETE FROM sessions WHERE id = ?').run(sessionId);
   logEvent('warn', 'session.deleted', `Session "${s.name}" (${s.game}) deleted`, { sessionId });
+  backupState();
   return true;
 }
 
@@ -250,6 +327,7 @@ function setSessionActive(sessionId, active) {
   if (!s) return null;
   db.prepare('UPDATE sessions SET active = ? WHERE id = ?').run(active ? 1 : 0, sessionId);
   logEvent('info', 'session.updated', `Session "${s.name}" ${active ? 'activated' : 'paused'}`, { sessionId });
+  backupState();
   return getSessionById(sessionId);
 }
 
@@ -259,6 +337,7 @@ function setSessionVisibility(sessionId, visibility) {
   const v = visibility === 'public' ? 'public' : 'private';
   db.prepare('UPDATE sessions SET visibility = ? WHERE id = ?').run(v, sessionId);
   logEvent('info', 'session.updated', `Session "${s.name}" set to ${v === 'private' ? 'Private' : 'Public'}`, { sessionId });
+  backupState();
   return getSessionById(sessionId);
 }
 
@@ -612,10 +691,14 @@ function setSetting(key, value) {
       INSERT INTO settings (key, value) VALUES (?, ?)
       ON CONFLICT(key) DO UPDATE SET value = excluded.value
     `).run(key, String(value));
+    backupState();
   } catch (e) {
     console.error('setSetting error:', e.message);
   }
 }
+
+// Initial state backup
+backupState();
 
 module.exports = {
   upsertUser,
@@ -652,4 +735,6 @@ module.exports = {
   getStats,
   getSetting,
   setSetting,
+  backupState,
+  restoreState,
 };

@@ -556,7 +556,7 @@ function paintSessions() {
             <span class="gchip" style="background:linear-gradient(135deg,#3b82f6,#8b5cf6);width:24px;height:24px;font-size:11px;border-radius:50%">${esc((s.players[0] || s.name || '?')[0].toUpperCase())}</span>
             <div>
               <div class="cell-main">${esc(s.name)}</div>
-              <div class="cell-sub">${s.players.length ? `${esc(s.players.slice(0, 2).join(', '))}${s.players.length > 2 ? ` +${s.players.length - 2}` : ''}` : `${s.reportCount} player${s.reportCount === 1 ? '' : 's'}`}</div>
+              <div class="cell-sub">${esc(s.createdBy ? `By ${s.createdBy}` : 'Admin')} · ${s.players.length ? `${esc(s.players.slice(0, 2).join(', '))}${s.players.length > 2 ? ` +${s.players.length - 2}` : ''}` : `${s.reportCount} scans`}</div>
             </div>
           </div>
         </td>
@@ -570,6 +570,7 @@ function paintSessions() {
           </button>
         </td>
         <td class="t-right" style="white-space:nowrap">
+          <button class="icon-btn" style="display:inline-grid;width:30px;height:30px;color:var(--blue-4)" data-action="share-pin" data-id="${s.id}" data-pin="${esc(s.pin)}" data-game="${esc(s.game)}" title="Copy Player Invite & Download Link">${icon('i-share', 14)}</button>
           <button class="icon-btn" style="display:inline-grid;width:30px;height:30px" data-action="session-reports" data-id="${s.id}" title="View reports">${icon('i-ext', 14)}</button>
           <button class="icon-btn" style="display:inline-grid;width:30px;height:30px" data-action="session-toggle" data-id="${s.id}" title="${s.active ? 'Pause' : 'Activate'}">${icon(s.active ? 'i-pause' : 'i-play', 13)}</button>
           <button class="icon-btn" style="display:inline-grid;width:30px;height:30px;color:var(--red-4)" data-action="session-delete" data-id="${s.id}" title="Delete">${icon('i-trash', 14)}</button>
@@ -2309,6 +2310,19 @@ async function handleAction(el, ev) {
       return;
     }
 
+    case 'share-pin': {
+      const pin = el.dataset.pin;
+      const game = el.dataset.game || 'Game';
+      const dlUrl = `${location.origin}/download/agent`;
+      const text = `🛡️ Tournament Anti-Cheat Verification:\n1. Download Agent EXE: ${dlUrl}\n2. Run AntiCheatAgent.exe and enter PIN: ${pin}\nGame: ${game}`;
+      navigator.clipboard.writeText(text).then(() => {
+        toast(`Copied player invite & download link for PIN ${pin}!`, 'success');
+      }).catch(() => {
+        toast(`PIN: ${pin} | Download: ${dlUrl}`, 'info');
+      });
+      return;
+    }
+
     case 'export': {
       const r = reportDetail;
       if (!r) return;
@@ -2399,6 +2413,8 @@ function init() {
     if (t.dataset.input === 'f-source') { state.fSource = t.value; paint(); refresh({ keepView: false }); }
   });
 
+  let lastCreatedPin = null;
+
   // session modal — Ocean game grid + private switch
   $('#game-grid').addEventListener('click', (ev) => {
     const card = ev.target.closest('.gcard[data-game]');
@@ -2408,6 +2424,42 @@ function init() {
     updatePinPreview();
   });
   $('#s-private').addEventListener('change', updatePinPreview);
+
+  const copyAgentDlBtn = $('#btn-copy-agent-dl');
+  if (copyAgentDlBtn) {
+    copyAgentDlBtn.addEventListener('click', () => {
+      const url = `${location.origin}/download/agent`;
+      navigator.clipboard.writeText(url).then(() => toast('Agent download link copied!', 'success'));
+    });
+  }
+
+  const copySucPinBtn = $('#btn-copy-suc-pin');
+  if (copySucPinBtn) {
+    copySucPinBtn.addEventListener('click', () => {
+      if (lastCreatedPin) {
+        navigator.clipboard.writeText(lastCreatedPin.pin).then(() => toast(`Copied PIN: ${lastCreatedPin.pin}`, 'success'));
+      }
+    });
+  }
+
+  const copySucInviteBtn = $('#btn-copy-suc-invite');
+  if (copySucInviteBtn) {
+    copySucInviteBtn.addEventListener('click', () => {
+      if (lastCreatedPin) {
+        const dlUrl = `${location.origin}/download/agent`;
+        const text = `🛡️ Tournament Anti-Cheat Verification:\n1. Download Agent EXE: ${dlUrl}\n2. Run AntiCheatAgent.exe and enter PIN: ${lastCreatedPin.pin}\nGame: ${lastCreatedPin.game}`;
+        navigator.clipboard.writeText(text).then(() => toast('Player invite & download link copied!', 'success'));
+      }
+    });
+  }
+
+  const sucViewBtn = $('#btn-suc-view-sessions');
+  if (sucViewBtn) {
+    sucViewBtn.addEventListener('click', () => {
+      closeModals();
+      goto('sessions');
+    });
+  }
 
   $('#form-session').addEventListener('submit', async (ev) => {
     ev.preventDefault();
@@ -2425,11 +2477,14 @@ function init() {
           visibility: $('#s-private').checked ? 'private' : 'public',
         }),
       });
+      lastCreatedPin = session;
       closeModals();
       $('#form-session').reset();
+      $('#suc-pin-code').textContent = session.pin;
+      $('#suc-pin-game').textContent = `${session.game} · ${session.name}`;
+      $('#modal-pin-success').hidden = false;
       toast(`Pin created — ${session.pin}`, 'success');
       state.sessTab = 'all';
-      goto('sessions');
       await refresh();
     } catch (err) {
       toast(err.message, 'error');

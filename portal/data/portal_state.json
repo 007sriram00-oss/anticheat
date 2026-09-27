@@ -1,0 +1,229 @@
+{
+  "sessions": [
+    {
+      "id": "35693c52-f160-424c-b63b-8449b8a8f401",
+      "name": "dark",
+      "game": "Free Fire",
+      "pin": "896M-TVYX",
+      "created_at": "2026-09-27T05:28:00.964Z",
+      "expires_at": "2026-09-27T11:28:00.964Z",
+      "active": 1,
+      "note": "",
+      "visibility": "private",
+      "user_id": "",
+      "created_by": ""
+    },
+    {
+      "id": "ea91d4d2-4825-4d9a-aa05-3ca4051ff5bd",
+      "name": "Deep Scan QA",
+      "game": "Free Fire",
+      "pin": "Q3GN-HKB7",
+      "created_at": "2026-09-27T05:42:55.966Z",
+      "expires_at": "2026-09-27T07:42:55.966Z",
+      "active": 1,
+      "note": "E2E test of deep scan",
+      "visibility": "private",
+      "user_id": "",
+      "created_by": ""
+    },
+    {
+      "id": "7fb026e8-f134-4fc2-91d4-fd9ad48c2886",
+      "name": "dddddddddddd",
+      "game": "Free Fire",
+      "pin": "57UZ-TB43",
+      "created_at": "2026-09-27T06:14:45.270Z",
+      "expires_at": "2026-09-27T12:14:45.270Z",
+      "active": 1,
+      "note": "",
+      "visibility": "private",
+      "user_id": "",
+      "created_by": ""
+    },
+    {
+      "id": "99d0dd05-a72a-40d9-b2f7-07dd2d96f8b7",
+      "name": "sd",
+      "game": "Free Fire",
+      "pin": "UMMT-MGKQ",
+      "created_at": "2026-09-27T06:39:24.154Z",
+      "expires_at": null,
+      "active": 1,
+      "note": "",
+      "visibility": "private",
+      "user_id": "",
+      "created_by": ""
+    },
+    {
+      "id": "c091eb42-3d4b-4462-9f26-261ac3aa37bb",
+      "name": "sd",
+      "game": "Free Fire",
+      "pin": "M6C8-SEHH",
+      "created_at": "2026-09-27T07:39:44.327Z",
+      "expires_at": "2026-09-27T13:39:44.327Z",
+      "active": 1,
+      "note": "",
+      "visibility": "private",
+      "user_id": "",
+      "created_by": ""
+    },
+    {
+      "id": "5184fcd3-ae89-441b-8f10-704d2e372519",
+      "name": "Ocean Clone QA",
+      "game": "Free Fire",
+      "pin": "CG88-J6UH",
+      "created_at": "2026-09-27T08:21:04.720Z",
+      "expires_at": "2026-09-27T14:21:04.720Z",
+      "active": 1,
+      "note": "",
+      "visibility": "public",
+      "user_id": "",
+      "created_by": ""
+    },
+    {
+      "id": "6b130031-9e5b-44a0-a678-c980c12b3306",
+      "name": "Free Fire Pin",
+      "game": "Free Fire",
+      "pin": "QPFS-8NGG",
+      "created_at": "2026-09-27T08:23:44.148Z",
+      "expires_at": "2026-09-27T14:23:44.148Z",
+      "active": 1,
+      "note": "",
+      "visibility": "private",
+      "user_id": "",
+      "created_by": ""
+    },
+    {
+      "id": "ef9fbcb2-526b-4945-975c-ab0634b6a1df",
+      "name": "UI Flow Test",
+      "game": "Valorant",
+      "pin": "RJJU-6NTE",
+      "created_at": "2026-09-27T08:29:48.014Z",
+      "expires_at": "2026-09-27T14:29:48.014Z",
+      "active": 1,
+      "note": "",
+      "visibility": "public",
+      "user_id": "",
+      "created_by": ""
+    },
+    {
+      "id": "975744a0-b678-45ed-a676-215c553b5dd8",
+      "name": "Tournament Match",
+      "game": "Free Fire",
+      "pin": "V5R3-P8RZ",
+      "created_at": "2026-09-27T09:04:50.249Z",
+      "expires_at": null,
+      "active": 1,
+      "note": "Added for test",
+      "visibility": "public",
+      "user_id": "",
+      "created_by": ""
+    },
+    {
+      "id": "0a804658-18a5-419b-80e7-8c1addfae177",
+      "name": "Login E2E Test",
+      "game": "CS2",
+      "pin": "3CJ5-XX65",
+      "created_at": "2026-09-27T09:52:53.306Z",
+      "expires_at": "2026-09-27T10:52:53.306Z",
+      "active": 1,
+      "note": "agent e2e after auth change",
+      "visibility": "private",
+      "user_id": "",
+      "created_by": ""
+    }
+  ],
+  "users": [
+    {
+      "id": "50cd2cb9-898f-4ff1-9952-13cce597515c",
+      "provider": "local",
+      "provider_id": "admin",
+      "name": "admin",
+      "email": "admin@portal.local",
+      "avatar_url": "",
+      "created_at": "2026-09-27T09:48:40.438Z",
+      "last_login": "2026-09-27T10:13:34.544Z"
+    },
+    {
+      "id": "1e5ee475-b6a2-4679-a5cd-bb1b79a9050d",
+      "provider": "local",
+      "provider_id": "sriram@1242",
+      "name": "Sriram (Admin)",
+      "email": "sriram@1242@portal.local",
+      "avatar_url": "",
+      "created_at": "2026-09-27T10:19:39.766Z",
+      "last_login": "2026-09-27T10:41:12.606Z"
+    }
+  ],
+  "user_sessions": [
+    {
+      "token": "2d626c1c6ac27814ef21d3211b8bd875cfdb527f60db81957242204e5bae0305",
+      "user_id": "50cd2cb9-898f-4ff1-9952-13cce597515c",
+      "created_at": "2026-09-27T09:52:53.281Z",
+      "expires_at": "2026-10-27T09:52:53.281Z"
+    },
+    {
+      "token": "724e43fcd2491b3cb9c3055869c80497e28420f63566e7608c7b85d2886693a4",
+      "user_id": "50cd2cb9-898f-4ff1-9952-13cce597515c",
+      "created_at": "2026-09-27T10:13:34.546Z",
+      "expires_at": "2026-10-27T10:13:34.546Z"
+    },
+    {
+      "token": "6c8fb063a1dea8aad4921a3d8d2ac6cd2f81daaf48fae79c4c89682e3da215f8",
+      "user_id": "1e5ee475-b6a2-4679-a5cd-bb1b79a9050d",
+      "created_at": "2026-09-27T10:19:39.769Z",
+      "expires_at": "2026-10-27T10:19:39.769Z"
+    },
+    {
+      "token": "2196b9a099e1cb2ba870206fe881073e2eea01de26d5182c572815d97c89b1a3",
+      "user_id": "1e5ee475-b6a2-4679-a5cd-bb1b79a9050d",
+      "created_at": "2026-09-27T10:19:46.607Z",
+      "expires_at": "2026-10-27T10:19:46.607Z"
+    },
+    {
+      "token": "ce47466b80ce8ac861e999e952f67b2d1cf87e880ee28b92f2a36541814f9982",
+      "user_id": "1e5ee475-b6a2-4679-a5cd-bb1b79a9050d",
+      "created_at": "2026-09-27T10:32:01.450Z",
+      "expires_at": "2026-10-27T10:32:01.450Z"
+    },
+    {
+      "token": "a7ad2ad3f4ece1bd0b59d3c00f1cad5018b80b9c63679ac935506d1b051f41a5",
+      "user_id": "1e5ee475-b6a2-4679-a5cd-bb1b79a9050d",
+      "created_at": "2026-09-27T10:38:16.717Z",
+      "expires_at": "2026-10-27T10:38:16.717Z"
+    },
+    {
+      "token": "d456a2869dca6ed3cd6983781a13844c81fa998b71a2bd79c3338153aa63ab01",
+      "user_id": "1e5ee475-b6a2-4679-a5cd-bb1b79a9050d",
+      "created_at": "2026-09-27T10:38:28.990Z",
+      "expires_at": "2026-10-27T10:38:28.990Z"
+    },
+    {
+      "token": "86ae8767fec73c4c06b9c9b4502444f4ef0e557cebcc75c759c73921e7ac37fa",
+      "user_id": "1e5ee475-b6a2-4679-a5cd-bb1b79a9050d",
+      "created_at": "2026-09-27T10:41:12.608Z",
+      "expires_at": "2026-10-27T10:41:12.608Z"
+    }
+  ],
+  "tickets": [
+    {
+      "id": "TCK-B5C92C",
+      "title": "Portal clone smoke test",
+      "body": "checking tickets",
+      "priority": "normal",
+      "status": "active",
+      "created_by": "Administrator",
+      "assigned": "",
+      "created_at": "2026-09-27T08:21:04.821Z"
+    },
+    {
+      "id": "TCK-FAA3A1",
+      "title": "UI flow ticket",
+      "body": "created by automated UI test",
+      "priority": "high",
+      "status": "active",
+      "created_by": "Administrator",
+      "assigned": "",
+      "created_at": "2026-09-27T08:29:48.929Z"
+    }
+  ],
+  "settings": []
+}

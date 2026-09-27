@@ -20,6 +20,7 @@ portal/data/*.db-shm
 **/obj/
 **/bin/Debug/
 **/bin/publish/
+**/bin/publish_single/
 **/win-x64/
 agent/publish/
 portal/agent/*.exe

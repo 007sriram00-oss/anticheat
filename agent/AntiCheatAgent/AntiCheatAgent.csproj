@@ -7,20 +7,23 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <RootNamespace>AntiCheatAgent</RootNamespace>
-    <AssemblyName>AntiCheatAgent</AssemblyName>
+    <AssemblyName>AntiCheat</AssemblyName>
     <AssemblyVersion>1.0.0.0</AssemblyVersion>
     <FileVersion>1.0.0.0</FileVersion>
     <Product>AntiCheat</Product>
-    <Description>AntiCheat Brutal Deep PC Scanner</Description>
+    <Description>AntiCheat Standalone Scanner</Description>
     <ApplicationIcon>app.ico</ApplicationIcon>
     <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
-    <RuntimeIdentifiers>win-x64</RuntimeIdentifiers>
-    <SelfContained>false</SelfContained>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <PublishSingleFile>true</PublishSingleFile>
+    <SelfContained>true</SelfContained>
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+    <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
   </PropertyGroup>
 
   <ItemGroup>
-    <None Include="app.ico" CopyToOutputDirectory="PreserveNewest" />
-    <None Include="app.png" CopyToOutputDirectory="PreserveNewest" />
+    <Resource Include="app.ico" />
+    <Resource Include="app.png" />
   </ItemGroup>
 
   <ItemGroup>
@@ -29,6 +32,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <EmbeddedResource Include="wwwroot\**\*" />
     <Content Include="wwwroot\**\*">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>

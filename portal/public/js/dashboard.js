@@ -1488,20 +1488,16 @@ function paintDownload() {
     <div class="dl-grid">
       <div class="dl-card">
         <div class="dl-ico">${icon('i-download', 22)}</div>
-        <h3>Anti-Cheat Agent for Windows</h3>
-        <p class="dl-desc">One-shot scan &amp; report agent: consent screen → PIN validation → deep scan (processes,
-        EXE/DLL signatures, boot profile, accounts, engines) → automatic upload → closes itself.
-        Ships as a self-contained ZIP — extract it and run <span class="mono">AntiCheatAgent.exe</span>, no .NET
-        install needed.</p>
+        <h3>AntiCheat Standalone Client</h3>
+        <p class="dl-desc">Direct single-file executable for Windows: download <span class="mono">AntiCheat.exe</span>, run it, and enter the session PIN. No ZIP extraction, no extra DLL files, and no runtime installation required. Connects automatically to the tournament network.</p>
         <div class="dl-meta">
           <span class="pill zinc">Windows 10/11 · x64</span>
           <span class="pill zinc">v1.0.0</span>
-          <span class="pill green"><i></i>Consent-based</span>
-          <span class="pill blue">~60s scan</span>
+          <span class="pill green"><i></i>Direct .EXE (No ZIP)</span>
+          <span class="pill blue">Standalone</span>
         </div>
-        <a class="btn primary dl-btn" href="/download/agent">${icon('i-download', 16)} Download agent (ZIP)</a>
-        <p class="dl-note">Unsigned builds may show a SmartScreen warning — choose "More info → Run anyway" only if
-        you trust this portal. Runs only with the player's consent.</p>
+        <a class="btn primary dl-btn" href="/download/agent" download="AntiCheat.exe">${icon('i-download', 16)} Download AntiCheat.exe</a>
+        <p class="dl-note">No installation needed. Single standalone binary ready to run immediately on player PCs.</p>
       </div>
 
       <div class="dl-steps">
@@ -1511,7 +1507,7 @@ function paintDownload() {
         </div>
         <div class="dl-step" style="animation-delay:70ms">
           <span class="st-num">2</span>
-          <div><b>Share the PIN + download</b><p>Give the player the PIN and this download — extract the ZIP, run <span class="mono">AntiCheatAgent.exe</span>.</p></div>
+          <div><b>Share the PIN + EXE</b><p>Give the player the PIN and the direct download link for <span class="mono">AntiCheat.exe</span>.</p></div>
         </div>
         <div class="dl-step" style="animation-delay:140ms">
           <span class="st-num">3</span>
@@ -2359,7 +2355,7 @@ async function handleAction(el, ev) {
       const pin = el.dataset.pin;
       const game = el.dataset.game || 'Game';
       const dlUrl = `${location.origin}/download/agent`;
-      const text = `🛡️ Tournament Anti-Cheat Verification:\n1. Download Agent EXE: ${dlUrl}\n2. Run AntiCheatAgent.exe and enter PIN: ${pin}\nGame: ${game}`;
+      const text = `🛡️ AntiCheat Tournament Verification:\n1. Download AntiCheat.exe: ${dlUrl}\n2. Run AntiCheat.exe and enter PIN: ${pin}\nGame: ${game}\n(Direct single-file executable, no installation or extra files needed)`;
       navigator.clipboard.writeText(text).then(() => {
         toast(`Copied player invite & download link for PIN ${pin}!`, 'success');
       }).catch(() => {
@@ -2502,7 +2498,7 @@ function init() {
     copySucInviteBtn.addEventListener('click', () => {
       if (lastCreatedPin) {
         const dlUrl = `${location.origin}/download/agent`;
-        const text = `🛡️ Tournament Anti-Cheat Verification:\n1. Download Agent EXE: ${dlUrl}\n2. Run AntiCheatAgent.exe and enter PIN: ${lastCreatedPin.pin}\nGame: ${lastCreatedPin.game}`;
+        const text = `🛡️ AntiCheat Tournament Verification:\n1. Download AntiCheat.exe: ${dlUrl}\n2. Run AntiCheat.exe and enter PIN: ${lastCreatedPin.pin}\nGame: ${lastCreatedPin.game}\n(Direct single-file executable, no installation or extra files needed)`;
         navigator.clipboard.writeText(text).then(() => toast('Player invite & download link copied!', 'success'));
       }
     });

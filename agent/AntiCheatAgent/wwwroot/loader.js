@@ -17,7 +17,7 @@ const bridge = {
 const state = {
   pin: '',
   playerName: '',
-  portal: 'http://127.0.0.1:3000',
+  portal: 'https://anticheat-gqae.onrender.com',
   auto: false,
   session: null,
   targetPct: 0,

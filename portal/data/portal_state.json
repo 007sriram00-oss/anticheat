@@ -248,5 +248,30 @@
       "user_id": ""
     }
   ],
-  "settings": []
+  "settings": [
+    {
+      "key": "discord_category_id",
+      "value": "1553759109499588729"
+    },
+    {
+      "key": "discord_login_channel_id",
+      "value": "1553759113652080682"
+    },
+    {
+      "key": "discord_alert_channel_id",
+      "value": "1553759116072067256"
+    },
+    {
+      "key": "discord_traffic_channel_id",
+      "value": "1553759117829607557"
+    },
+    {
+      "key": "discord_guild_id",
+      "value": "1553715213843300384"
+    },
+    {
+      "key": "total_site_views",
+      "value": "6"
+    }
+  ]
 }

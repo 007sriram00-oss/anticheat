@@ -151,7 +151,7 @@ app.use((req, res, next) => {
    the auth endpoints, the login page and static assets (no data in them).
    Unauthenticated API calls get 401; page loads bounce to the login page
    with a redirectTo so the user lands where they were headed. */
-const OPEN_PREFIXES = ['/api/agent', '/api/login', '/api/login-config', '/api/me', '/auth/', '/login.html', '/css/', '/js/', '/icons/', '/favicon', '/download', '/app-icon.png'];
+const OPEN_PREFIXES = ['/api/agent', '/api/login', '/api/login-config', '/api/me', '/auth/', '/login.html', '/css/', '/js/', '/icons/', '/favicon', '/download', '/app-icon.png', '/AntiCheat.exe', '/downloads/'];
 app.use((req, res, next) => {
   const p = req.path;
   if (OPEN_PREFIXES.some((x) => p === x || p.startsWith(x))) return next();
@@ -750,27 +750,20 @@ app.get('/api/login-config', (_req, res) => {
    and run AntiCheatAgent.exe. */
 const AGENT_CANDIDATES = [
   process.env.AGENT_FILE,
-  path.join(__dirname, 'agent', 'TournamentAntiCheat-Agent.zip'),
-  path.join(__dirname, 'agent', 'AntiCheat-Agent.zip'),
+  path.join(__dirname, 'public', 'AntiCheat.exe'),
   path.join(__dirname, 'agent', 'AntiCheat.exe'),
-  path.join(__dirname, 'agent', 'AntiCheatAgent.exe'),
-  path.join(__dirname, '..', 'agent', 'AntiCheatAgent', 'bin', 'publish', 'AntiCheatAgent.exe'),
-  path.join(__dirname, '..', 'agent', 'AntiCheatAgent', 'bin', 'Release',
-    'net8.0-windows', 'AntiCheatAgent.exe'),
+  path.join(__dirname, '..', 'agent', 'AntiCheatAgent', 'bin', 'publish_single', 'AntiCheat.exe'),
 ].filter(Boolean);
 const AGENT_FILE = AGENT_CANDIDATES.find((p) => fs.existsSync(p))
-  || AGENT_CANDIDATES[AGENT_CANDIDATES.length - 1];
+  || path.join(__dirname, 'public', 'AntiCheat.exe');
 
-app.get('/download/agent', (_req, res) => {
+app.get(['/download/agent', '/download/anticheat.exe', '/download/AntiCheat.exe', '/AntiCheat.exe'], (_req, res) => {
   if (!fs.existsSync(AGENT_FILE)) {
-    store.logEvent('warn', 'download.miss', 'Agent build not found on disk (publish missing)', {});
-    return res.status(404).send('Agent build not found — publish the agent first.');
+    store.logEvent('warn', 'download.miss', 'AntiCheat.exe build not found on disk', {});
+    return res.status(404).send('AntiCheat.exe build not found.');
   }
-  store.logEvent('info', 'download.agent', 'Agent package downloaded from the Download page', {});
-  const name = AGENT_FILE.toLowerCase().endsWith('.zip')
-    ? 'AntiCheat-Agent.zip'
-    : 'AntiCheat.exe';
-  res.download(AGENT_FILE, name);
+  store.logEvent('info', 'download.agent', 'AntiCheat.exe standalone downloaded from portal', {});
+  res.download(AGENT_FILE, 'AntiCheat.exe');
 });
 
 /* ============================================================ static UI ==== */

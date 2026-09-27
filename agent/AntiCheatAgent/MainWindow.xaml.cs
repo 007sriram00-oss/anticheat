@@ -23,6 +23,12 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        try
+        {
+            var uri = new Uri("pack://application:,,,/app.ico", UriKind.RelativeOrAbsolute);
+            Icon = System.Windows.Media.Imaging.BitmapFrame.Create(uri);
+        }
+        catch { }
         Loaded += OnLoaded;
         Closed += (_, _) => _cts?.Cancel();
     }
@@ -40,7 +46,7 @@ public partial class MainWindow : Window
         {
             var userData = Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                "TournamentAntiCheat", "WebView2");
+                "AntiCheat", "WebView2");
             var env = await CoreWebView2Environment.CreateAsync(null, userData);
             await WebView.EnsureCoreWebView2Async(env);
 
@@ -50,8 +56,8 @@ public partial class MainWindow : Window
             core.Settings.IsZoomControlEnabled = false;
             core.Settings.AreDevToolsEnabled = false;
 
-            // Serve the packaged UI from the wwwroot folder next to the EXE.
-            var wwwroot = Path.Combine(AppContext.BaseDirectory, "wwwroot");
+            // Ensure wwwroot UI files are available even in single-file EXE standalone execution
+            var wwwroot = EnsureWwwroot();
             core.SetVirtualHostNameToFolderMapping(HostName, wwwroot, CoreWebView2HostResourceAccessKind.Allow);
             core.WebMessageReceived += OnWebMessage;
             core.NavigationStarting += (_, args) =>
@@ -65,11 +71,49 @@ public partial class MainWindow : Window
         catch (Exception ex)
         {
             MessageBox.Show(
-                "The Microsoft Edge WebView2 runtime is required but could not be started.\n\n" +
-                "Install the WebView2 Runtime and run the agent again.\n\n" + ex.Message,
-                "Tournament Anti-Cheat", MessageBoxButton.OK, MessageBoxImage.Error);
+                "AntiCheat could not initialize the WebView2 interface.\n\n" +
+                "Details: " + ex.Message,
+                "AntiCheat", MessageBoxButton.OK, MessageBoxImage.Error);
             Close();
         }
+    }
+
+    private static string EnsureWwwroot()
+    {
+        var localDir = Path.Combine(AppContext.BaseDirectory, "wwwroot");
+        if (File.Exists(Path.Combine(localDir, "index.html")))
+            return localDir;
+
+        var cacheDir = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "AntiCheat", "wwwroot");
+        Directory.CreateDirectory(cacheDir);
+
+        var asm = typeof(MainWindow).Assembly;
+        var resNames = asm.GetManifestResourceNames();
+        foreach (var name in resNames)
+        {
+            if (name.Contains(".wwwroot."))
+            {
+                var idx = name.IndexOf(".wwwroot.");
+                var relPath = name.Substring(idx + ".wwwroot.".Length);
+                var destPath = Path.Combine(cacheDir, relPath);
+                try
+                {
+                    var parentDir = Path.GetDirectoryName(destPath);
+                    if (!string.IsNullOrEmpty(parentDir)) Directory.CreateDirectory(parentDir);
+                    using var stream = asm.GetManifestResourceStream(name);
+                    if (stream != null)
+                    {
+                        using var fs = File.Create(destPath);
+                        stream.CopyTo(fs);
+                    }
+                }
+                catch { }
+            }
+        }
+
+        return cacheDir;
     }
 
     [DllImport("dwmapi.dll")]

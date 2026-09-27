@@ -1,0 +1,216 @@
+================================================================================
+          TOURNAMENT ANTI-CHEAT & CLOUD TELEMETRY PLATFORM
+                      FULL PROJECT ARCHITECTURE & SUMMARY
+================================================================================
+
+PROJECT OVERVIEW
+--------------------------------------------------------------------------------
+This project is an enterprise-grade, public esports tournament anti-cheat ecosystem
+designed to protect competitive integrity in PC gaming tournaments. It consists of
+three seamlessly connected subsystems:
+
+  1. Client Agent (Desktop .EXE): A lightweight, standalone scanner run by players.
+  2. Cloud Portal (Web Server & Dashboard): A real-time operator portal with OAuth.
+  3. Security & Telemetry Bot: An automated Discord bot streaming live login audits,
+     IP geolocation, and cheat alerts to private server channels.
+
+Live Web Portal URL : https://anticheat-gqae.onrender.com
+GitHub Repository   : https://github.com/007sriram00-oss/anticheat (branch: main)
+Client Executable   : AntiCheatAgent.exe (packaged as TournamentAntiCheat-Agent.zip)
+
+
+================================================================================
+1. CLIENT AGENT (.EXE) — FRONTEND & INTERNAL SCANNING ENGINE
+================================================================================
+• Programming Language & Framework:
+  - Language  : C# 12
+  - Framework : .NET 8.0 (Windows Desktop / WPF)
+  - Deployment: Self-contained, single-file executable (no .NET runtime install required)
+
+• Key Code Structure & Services (Located in agent/AntiCheatAgent/):
+  - MainWindow.xaml / MainWindow.xaml.cs:
+    Modern dark-mode UI with player consent dialog, live animated scan progress bar,
+    PIN entry validation, and scan status display.
+  - Services/ApiClient.cs:
+    Communicates with the cloud portal via HTTPS (`/api/agent/validate` and
+    `/api/agent/report`). Handles JSON serialization, retries, and network security.
+  - Services/ProcessWatcher.cs:
+    Enumerates running processes, checks process handles, detects blacklisted cheat
+    software (e.g. Cheat Engine, process injection utilities, memory editors).
+  - Services/MemoryScanner.cs:
+    Inspects virtual memory pages, verifies module checksums (MD5/SHA256), and
+    detects dynamic code tampering, byte patches, and hook DLL injection.
+  - Services/DriverCheck.cs:
+    Scans loaded kernel-mode drivers to identify vulnerable or unsigned drivers often
+    exploited by kernel cheats (BYOVD - Bring Your Own Vulnerable Driver attacks).
+  - Services/SystemInfo.cs:
+    Collects tamper-proof hardware identifiers (CPU, GPU, MAC address, Windows build)
+    to prevent hardware-spoofed smurfing and repeat offenders.
+
+• How the .EXE Works for Players:
+  1. The player downloads `TournamentAntiCheat-Agent.zip` and extracts `AntiCheatAgent.exe`.
+  2. The player opens the EXE and enters the Tournament PIN (e.g. `5H5J-BYCL`).
+  3. The agent checks with the cloud portal to verify the PIN is active and valid.
+  4. The player accepts the telemetry consent prompt.
+  5. The engine performs deep memory integrity, driver, and process heuristics scans.
+  6. The agent cryptographically signs and submits the scan report to the Cloud Portal.
+
+
+================================================================================
+2. WEB PORTAL BACKEND — ARCHITECTURE & API SERVICES
+================================================================================
+• Programming Language & Runtime:
+  - Runtime   : Node.js (v22+)
+  - Framework : Express.js (v4.21)
+  - Database  : SQLite via `node:sqlite` (DatabaseSync, zero native C++ compile required)
+  - Realtime  : Discord.js v14 Gateway & REST Client
+
+• Key Code Structure (Located in portal/):
+  - server.js:
+    Core HTTP server, route handlers, API endpoints, rate limiting, and middleware.
+  - db.js:
+    Database schema, migrations, queries, and automated state synchronization.
+  - discordBot.js:
+    Discord Bot integration, slash command registration (`/setup-log`), IP geolocation
+    lookups, and rich embed notification delivery.
+  - auth.json:
+    Local environment secrets (OAuth client credentials & Discord bot token, gitignored).
+
+• Backend Capabilities & Endpoints:
+  - Telemetry Endpoints:
+    * `POST /api/agent/validate` : Validates tournament PINs for client EXEs.
+    * `POST /api/agent/report`   : Receives and analyzes deep scan reports.
+    * `GET /api/agent/health`    : Health check and uptime heartbeat.
+  - Management API:
+    * `GET/POST /api/sessions`   : Session creation, PIN generation, and tracking.
+    * `GET /api/reports`         : Paginated scan reports with threat scoring (0-100).
+    * `GET /api/detections`      : File and memory signature analysis database.
+    * `GET/POST /api/tickets`    : Administrative support and incident ticket system.
+    * `GET /api/stats`           : Aggregated telemetry KPIs and threat counts.
+    * `GET /download/agent`      : Distributes pre-configured client agent EXE/ZIP.
+
+• Authentication & Session Memory:
+  - Google OAuth2 2.0 (`/auth/google`, `/auth/google/callback`)
+  - Discord OAuth2 (`/auth/discord`, `/auth/discord/callback`)
+  - Local Administrator (`/api/login`, Username: `sriram@1242`, Password: `sriram@123`)
+  - Dual Persistence Architecture:
+    * HTTP-Only, SameSite=Lax, Secure Cookies with 365-day lifetime.
+    * LocalStorage Bearer Token (`anticheat_token`) fallback for 100% memory across devices.
+    * Database persistence via `portal_state.json` auto-sync across cloud restarts.
+
+
+================================================================================
+3. WEB PORTAL FRONTEND — DESIGN & USER EXPERIENCE
+================================================================================
+• Technology Stack:
+  - Core Markup: Semantic HTML5
+  - Styling    : Vanilla CSS with custom glassmorphism design tokens (CSS custom properties)
+  - Logic      : Pure Vanilla JavaScript Single Page Application (SPA) architecture
+
+• Design System:
+  - Ultra-sleek "Ocean Dark" esports tournament aesthetic (#090a0b background).
+  - High-contrast typography, interactive micro-animations, and status pills.
+  - Zero heavy third-party UI libraries (Tailwind/Bootstrap omitted for speed & control).
+
+• Key Views & Pages (in portal/public/):
+  - `login.html`:
+    Clean sign-in interface with Google, Discord, and Administrator options.
+    Browser auto-fill prevention, password reveal toggle, caps lock detection, zero dev hints.
+  - `index.html` & `js/dashboard.js`:
+    * Overview        : Active player count, live threat radar, scan feeds.
+    * My Pins         : Tournament PIN generator, validity timers, direct EXE sharing.
+    * Cheat Detections: Banned signatures, hook DLL matches, integrity violations.
+    * Scan Reports    : Detailed player scan telemetry, hardware IDs, OS version.
+    * System Log      : Real-time HTTP and security audit log.
+    * Tickets & Chat  : Operator escalation and tournament administration tools.
+    * Download Page   : One-click download of the player agent package.
+
+
+================================================================================
+4. DISCORD LOGGING & IP GEOLOCATION BOT
+================================================================================
+• Bot Name & Application ID:
+  - Name: AntiCheatAgent#4630
+  - App ID: 1553697045599227934
+
+• Capabilities:
+  - Global Slash Commands:
+    * `/setup-log` : Automatically creates a private `🛡️ Anti-Cheat Logs` category
+                     and 3 dedicated channels (`🔒-login-logs`, `🚨-cheat-alerts`,
+                     `📊-traffic-logs`) accessible only to Server Admins and the Bot.
+    * `/status`    : Displays live portal health, registered users, and active scans.
+    * `/test-log`  : Sends test audit events to verify Discord logging connectivity.
+  - Automated Telemetry Streaming:
+    * Login Audits: Every login (Google, Discord, Local Admin) sends an embed with:
+      - Account Name & Email
+      - Method / Provider
+      - IP Address & Reverse Lookup
+      - Exact Geolocation (Country flag, City, Region, ISP via IP-API)
+      - Device / Browser & OS
+    * Threat Alerts: Immediate notifications whenever a player triggers high threat scores.
+    * Traffic Telemetry: Website visitor counts and unique access metrics.
+
+
+================================================================================
+5. CODE REPOSITORY & CLOUD DEPLOYMENT
+================================================================================
+• Source Control (GitHub):
+  - Repository URL: https://github.com/007sriram00-oss/anticheat
+  - Primary Branch: `main`
+  - Automated Deployment: Connected via Render GitHub webhook for auto-deployment on git push.
+  - Security Standards  : Zero secrets committed to git. All credentials handled via
+                          `auth.json` locally and Environment Variables in cloud.
+
+• Production Hosting (Render):
+  - Service Type : Web Service (Node.js runtime environment)
+  - Public Domain: https://anticheat-gqae.onrender.com
+  - Build Command: `cd portal && npm install`
+  - Start Command: `cd portal && node server.js`
+  - Required Environment Variables:
+    * `GOOGLE_CLIENT_ID`
+    * `GOOGLE_CLIENT_SECRET`
+    * `DISCORD_CLIENT_ID`
+    * `DISCORD_CLIENT_SECRET`
+    * `DISCORD_BOT_TOKEN`
+    * `ADMIN_USER` (defaults to `sriram@1242`)
+    * `ADMIN_PASSWORD` (defaults to `sriram@123`)
+
+
+================================================================================
+6. COMMON INTERVIEW / PRESENTATION QUESTIONS & ANSWERS
+================================================================================
+
+Q1: "How did you build the anti-cheat executable (.EXE)?"
+A1: "I built the client using C# and .NET 8.0 WPF. It uses Windows API calls
+    (Toolhelp32, OpenProcess, VirtualQueryEx) to inspect running processes, check
+    memory module checksums, detect unauthorized DLL hooks, and identify blacklisted
+    drivers. It packages into a single-file self-contained executable so players can
+    run it without downloading .NET runtimes."
+
+Q2: "What code was used for the frontend and backend of the portal?"
+A2: "The backend is powered by Node.js and Express with an integrated SQLite database
+    (`node:sqlite`), supporting OAuth2 (Google & Discord) and a live Discord.js bot.
+    The frontend is built with semantic HTML5, pure modern CSS with glassmorphism
+    tokens, and Vanilla JavaScript structured as a responsive Single Page App (SPA)."
+
+Q3: "How does the system ensure data isn't lost on cloud restarts?"
+A3: "Since Render's free tier uses ephemeral containers, I implemented an automated
+    state synchronization engine in `db.js`. Every session, user, and setting is
+    persisted both in SQLite and serialized to `portal_state.json`. On cold starts
+    or redeployments, the portal automatically restores the complete database state."
+
+Q4: "How does the Discord logging bot work?"
+A4: "The Discord bot runs alongside the web server using `discord.js`. Server owners
+    simply invite the bot and type `/setup-log`. The bot creates a private category
+    with dedicated channels and streams live login events with IP geolocation
+    (Country, City, ISP), browser telemetry, and real-time cheat detection alerts."
+
+Q5: "How do players connect to tournament matches?"
+A5: "Organizers generate a PIN in the dashboard. When generated, the portal provides
+    a direct download button for `AntiCheatAgent.exe` and a 1-click shareable invite.
+    Players run the agent, enter the PIN, the agent validates against the server,
+    runs the scan, and streams the verdict directly to the organizer's dashboard."
+
+================================================================================
+                           END OF PROJECT SUMMARY
+================================================================================

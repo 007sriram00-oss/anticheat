@@ -162,18 +162,22 @@ app.use('/api/agent', (req, res, next) => {
 // Agent checks a session PIN before scanning.
 app.post('/api/agent/validate', (req, res) => {
   const { pin } = req.body || {};
+  const hostname = req.body?.hostname || req.body?.system?.hostname || req.headers['x-hostname'] || '';
   const session = store.getSessionByPin(pin);
   if (!session) {
     store.logEvent('warn', 'agent.rejected', `Rejected unknown session PIN`, { hint: String(pin || '').slice(0, 4) + '****' });
+    discordBot.logPinValidated({ pin, session: null, ip: req.ip, valid: false, paused: false, hostname });
     return res.status(404).json({ ok: false, error: 'Invalid session PIN' });
   }
   if (!session.active) {
     store.logEvent('warn', 'agent.rejected', `PIN used for paused session ${session.name}`, { sessionId: session.id });
+    discordBot.logPinValidated({ pin, session, ip: req.ip, valid: false, paused: true, hostname });
     return res.status(403).json({ ok: false, error: 'This session is paused' });
   }
   store.logEvent('info', 'agent.validate', `Agent validated for "${session.name}" (${session.game})`, {
     sessionId: session.id,
   });
+  discordBot.logPinValidated({ pin, session, ip: req.ip, valid: true, paused: false, hostname });
   return res.json({
     ok: true,
     session: {
@@ -240,6 +244,7 @@ app.post('/api/sessions', (req, res) => {
     userId: user ? user.id : '',
     createdBy: user ? (user.name || user.email || 'Admin') : 'Admin',
   });
+  discordBot.logSessionCreated({ session, user, ip: req.ip });
   res.status(201).json(session);
 });
 
@@ -252,11 +257,18 @@ app.post('/api/sessions/:id/visibility', (req, res) => {
 app.post('/api/sessions/:id/active', (req, res) => {
   const session = store.setSessionActive(req.params.id, !!req.body?.active);
   if (!session) return res.status(404).json({ error: 'Session not found' });
+  const user = req.user || sessionUser(req);
+  discordBot.logSessionStatus({ session, action: session.active ? 'activated' : 'paused', user, ip: req.ip });
   res.json(session);
 });
 
 app.delete('/api/sessions/:id', (req, res) => {
+  const existing = store.getSessionById(req.params.id);
   if (!store.deleteSession(req.params.id)) return res.status(404).json({ error: 'Session not found' });
+  if (existing) {
+    const user = req.user || sessionUser(req);
+    discordBot.logSessionStatus({ session: existing, action: 'deleted', user, ip: req.ip });
+  }
   res.json({ ok: true });
 });
 

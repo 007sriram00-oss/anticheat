@@ -124,6 +124,10 @@ const commands = [
     .setName('test-log')
     .setDescription('Send a test event to verify the anti-cheat logging channels')
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
+
+  new SlashCommandBuilder()
+    .setName('ping')
+    .setDescription('Check Discord bot network ping in ms, DB latency, and live metrics'),
 ].map((cmd) => cmd.toJSON());
 
 async function registerCommands(token, clientId) {
@@ -175,6 +179,8 @@ function initDiscordBot(token, clientId) {
         await handleStatus(interaction);
       } else if (commandName === 'test-log') {
         await handleTestLog(interaction);
+      } else if (commandName === 'ping') {
+        await handlePing(interaction);
       }
     } catch (err) {
       console.error('[Discord Interaction Error]:', err.message);
@@ -337,6 +343,45 @@ async function handleStatus(interaction) {
   }
 }
 
+async function handlePing(interaction) {
+  try {
+    const sent = await interaction.deferReply({ fetchReply: true });
+    const roundtrip = sent.createdTimestamp - interaction.createdTimestamp;
+    const wsPing = client.ws.ping;
+
+    // Measure Database latency
+    const t0 = performance.now();
+    const stats = store.getStats();
+    const dbMs = performance.now() - t0;
+
+    const totalViews = Number(store.getSetting('total_site_views', '0')) + viewCounter;
+    const portalUrl = process.env.PUBLIC_URL || 'https://anticheat-gqae.onrender.com';
+    const pingQuality = wsPing < 100 ? '🟢 Excellent' : wsPing < 200 ? '🟡 Good' : '🔴 High Latency';
+
+    const embed = new EmbedBuilder()
+      .setTitle('🏓 Network Latency & Live Telemetry')
+      .setColor(wsPing < 150 ? 0x10b981 : 0xf59e0b)
+      .addFields(
+        { name: '🤖 Bot WebSocket Latency', value: `\`${wsPing}ms\` (${pingQuality})`, inline: true },
+        { name: '⚡ Roundtrip Interaction', value: `\`${roundtrip}ms\``, inline: true },
+        { name: '💾 Database Query Speed', value: `\`${dbMs.toFixed(2)}ms\``, inline: true },
+        { name: '📈 Total Website Views', value: `**${totalViews}** visits`, inline: true },
+        { name: '🔑 Active PIN Sessions', value: `**${stats.activeSessions || 0}** active`, inline: true },
+        { name: '📋 Total Scans Completed', value: `**${stats.totalReports || 0}** scans`, inline: true },
+        { name: '👥 Registered Accounts', value: `**${stats.totalUsers || 0}** users`, inline: true },
+        { name: '🚨 Flagged Detections', value: `**${stats.flaggedReports || 0}** cheats`, inline: true },
+        { name: '🌐 Portal Network', value: `[Open Live Portal](${portalUrl})`, inline: true },
+      )
+      .setFooter({ text: 'Tournament Anti-Cheat Monitoring Engine' })
+      .setTimestamp();
+
+    await interaction.editReply({ embeds: [embed] });
+  } catch (err) {
+    console.error('[Discord Ping Error]:', err);
+    await interaction.editReply(`❌ Ping check failed: ${err.message}`).catch(() => {});
+  }
+}
+
 async function handleTestLog(interaction) {
   try {
     await interaction.deferReply({ flags: 64 });
@@ -349,8 +394,29 @@ async function handleTestLog(interaction) {
       userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/122.0.0.0',
     });
 
+    await logSessionCreated({
+      session: {
+        pin: 'TEST-1234',
+        name: 'Championship Finals',
+        game: 'Counter-Strike 2',
+        createdBy: interaction.user.username,
+        expiresAt: new Date(Date.now() + 6 * 3600 * 1000).toISOString(),
+        visibility: 'private',
+      },
+      user: { name: interaction.user.username },
+      ip: '8.8.8.8',
+    });
+
+    await logPinValidated({
+      pin: 'TEST-1234',
+      session: { game: 'Counter-Strike 2' },
+      ip: '8.8.8.8',
+      valid: true,
+      hostname: 'DESKTOP-PLAYER1',
+    });
+
     await logCheatAlert({
-      pin: 'TEST-9999',
+      pin: 'TEST-1234',
       playerName: 'Cheater_Sample',
       game: 'Counter-Strike 2',
       verdict: 'cheat_detected',
@@ -363,7 +429,7 @@ async function handleTestLog(interaction) {
       ip: '198.51.100.4',
     });
 
-    await interaction.editReply('✅ Test login log and test cheat alert dispatched successfully!').catch(() => {});
+    await interaction.editReply('✅ Dispatched test login, session creation, player join, and cheat alert successfully!').catch(() => {});
   } catch (err) {
     await interaction.editReply(`❌ Test failed: ${err.message}`).catch(() => {});
   }
@@ -473,6 +539,106 @@ async function logCheatAlert({ pin, playerName, game, verdict, score, findings, 
 }
 
 /**
+ * Log when a tournament session / PIN is created
+ */
+async function logSessionCreated({ session, user, ip }) {
+  const geo = await lookupIp(ip);
+  const embed = new EmbedBuilder()
+    .setTitle(`🔑 New Tournament PIN Created: ${session.pin}`)
+    .setColor(0x3b82f6)
+    .addFields(
+      { name: '🎮 Game & Session', value: `**${session.game}**\n*${session.name}*`, inline: true },
+      { name: '👤 Creator', value: `**${session.createdBy || (user && user.name) || 'Admin'}**`, inline: true },
+      { name: '🔑 PIN Code', value: `\`${session.pin}\``, inline: true },
+      { name: '🔒 Access Type', value: session.visibility === 'public' ? '🌐 Public' : '🔒 Private', inline: true },
+      { name: '⏱️ Validity', value: session.expiresAt ? new Date(session.expiresAt).toLocaleString() : 'No Expiry', inline: true },
+      { name: '🌐 Creator Location', value: `${geo.flag} ${geo.location} (\`${geo.ip}\`)`, inline: false },
+    )
+    .setFooter({ text: 'Tournament Anti-Cheat Session Audit' })
+    .setTimestamp();
+
+  const channelId = store.getSetting('discord_login_channel_id') || store.getSetting('discord_alert_channel_id');
+  if (client && isReady && channelId) {
+    try {
+      const channel = await client.channels.fetch(channelId).catch(() => null);
+      if (channel && channel.isTextBased()) await channel.send({ embeds: [embed] });
+    } catch (e) {
+      console.error('[Discord Session Created Log Error]:', e.message);
+    }
+  }
+
+  const webhookUrl = process.env.DISCORD_WEBHOOK_URL;
+  if (webhookUrl) await sendWebhook(webhookUrl, embed);
+}
+
+/**
+ * Log when a player joins / validates a PIN from the desktop agent EXE
+ */
+async function logPinValidated({ pin, session, ip, valid, paused, hostname }) {
+  const geo = await lookupIp(ip);
+  const isOk = valid && !paused;
+
+  const embed = new EmbedBuilder()
+    .setTitle(isOk ? `🎮 Player Connected to PIN: ${pin}` : `⚠️ PIN Validation Failed: ${pin}`)
+    .setColor(isOk ? 0x10b981 : 0xef4444)
+    .addFields(
+      { name: '🔑 Session PIN', value: `\`${pin}\``, inline: true },
+      { name: '🎮 Game', value: session ? `**${session.game}**` : 'Unknown', inline: true },
+      { name: '🖥️ Player Hostname', value: `\`${hostname || 'Player Machine'}\``, inline: true },
+      { name: '📡 Status', value: isOk ? '✅ Validated — Agent Scanning' : (paused ? '⏸️ Session Paused' : '❌ Invalid PIN'), inline: true },
+      { name: '🌐 Player Location', value: `${geo.flag} ${geo.location} (\`${geo.ip}\` - *${geo.isp}*)`, inline: false },
+    )
+    .setFooter({ text: 'Tournament Anti-Cheat Player Telemetry' })
+    .setTimestamp();
+
+  const channelId = store.getSetting('discord_login_channel_id') || store.getSetting('discord_alert_channel_id');
+  if (client && isReady && channelId) {
+    try {
+      const channel = await client.channels.fetch(channelId).catch(() => null);
+      if (channel && channel.isTextBased()) await channel.send({ embeds: [embed] });
+    } catch (e) {
+      console.error('[Discord PIN Validated Error]:', e.message);
+    }
+  }
+
+  const webhookUrl = process.env.DISCORD_WEBHOOK_URL;
+  if (webhookUrl) await sendWebhook(webhookUrl, embed);
+}
+
+/**
+ * Log session status changes (paused, activated, deleted)
+ */
+async function logSessionStatus({ session, action, user, ip }) {
+  const geo = await lookupIp(ip);
+  const colors = { activated: 0x10b981, paused: 0xf59e0b, deleted: 0xef4444 };
+
+  const embed = new EmbedBuilder()
+    .setTitle(`⚙️ Session ${action.toUpperCase()}: ${session.name}`)
+    .setColor(colors[action] || 0x3b82f6)
+    .addFields(
+      { name: '🎮 Game', value: session.game, inline: true },
+      { name: '🔑 PIN', value: `\`${session.pin}\``, inline: true },
+      { name: '👤 Operator', value: user ? (user.name || user.email || 'Admin') : 'Admin', inline: true },
+      { name: '🌐 Operator Location', value: `${geo.flag} ${geo.location} (\`${geo.ip}\`)`, inline: false },
+    )
+    .setFooter({ text: 'Tournament Anti-Cheat Audit' })
+    .setTimestamp();
+
+  const channelId = store.getSetting('discord_alert_channel_id') || store.getSetting('discord_login_channel_id');
+  if (client && isReady && channelId) {
+    try {
+      const channel = await client.channels.fetch(channelId).catch(() => null);
+      if (channel && channel.isTextBased()) await channel.send({ embeds: [embed] });
+    } catch (e) {
+      console.error('[Discord Session Status Error]:', e.message);
+    }
+  }
+
+  const webhookUrl = process.env.DISCORD_WEBHOOK_URL;
+  if (webhookUrl) await sendWebhook(webhookUrl, embed);
+}
+
+/**
  * Public method to log website traffic
  */
 let viewCounter = 0;
@@ -480,6 +646,10 @@ let lastTrafficReport = Date.now();
 
 async function logTraffic({ path, ip, userAgent }) {
   viewCounter += 1;
+
+  // Persist total view count to settings
+  const total = Number(store.getSetting('total_site_views', '0')) + 1;
+  store.setSetting('total_site_views', String(total));
 
   // Post summary every 50 views or every 30 minutes to prevent spamming
   const now = Date.now();
@@ -490,10 +660,11 @@ async function logTraffic({ path, ip, userAgent }) {
     lastTrafficReport = now;
 
     const embed = new EmbedBuilder()
-      .setTitle('📊 Website Traffic Update')
+      .setTitle('📊 Website Traffic & Access Telemetry')
       .setColor(0x10b981)
       .addFields(
-        { name: '📈 Recent Page Views', value: `**${count}** page visits`, inline: true },
+        { name: '📈 Total Views to Date', value: `**${total}** all-time visits`, inline: true },
+        { name: '⚡ Recent Window Hits', value: `**${count}** page visits`, inline: true },
         { name: '🌐 Latest Access From', value: `${geo.flag} ${geo.location} (\`${geo.ip}\`)`, inline: true },
         { name: '🔗 Latest Path', value: `\`${path || '/'}\``, inline: true },
       )
@@ -523,5 +694,8 @@ module.exports = {
   initDiscordBot,
   logLogin,
   logCheatAlert,
+  logSessionCreated,
+  logPinValidated,
+  logSessionStatus,
   logTraffic,
 };

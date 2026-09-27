@@ -129,6 +129,19 @@
       "visibility": "private",
       "user_id": "",
       "created_by": ""
+    },
+    {
+      "id": "4762b15b-2c10-4f6e-ab77-a25c8cc48c1f",
+      "name": "Tournament Match 1",
+      "game": "Valorant",
+      "pin": "5H5J-BYCL",
+      "created_at": "2026-09-27T10:49:25.770Z",
+      "expires_at": "2026-09-27T16:49:25.770Z",
+      "active": 1,
+      "note": "",
+      "visibility": "private",
+      "user_id": "1e5ee475-b6a2-4679-a5cd-bb1b79a9050d",
+      "created_by": "Sriram (Admin)"
     }
   ],
   "users": [
@@ -150,7 +163,7 @@
       "email": "sriram@1242@portal.local",
       "avatar_url": "",
       "created_at": "2026-09-27T10:19:39.766Z",
-      "last_login": "2026-09-27T10:41:12.606Z"
+      "last_login": "2026-09-27T10:49:25.674Z"
     }
   ],
   "user_sessions": [
@@ -201,6 +214,12 @@
       "user_id": "1e5ee475-b6a2-4679-a5cd-bb1b79a9050d",
       "created_at": "2026-09-27T10:41:12.608Z",
       "expires_at": "2026-10-27T10:41:12.608Z"
+    },
+    {
+      "token": "ed12e087369802c5894b1e22d028c776e62fbed2311c5f41a04eaf5e4728f3bc",
+      "user_id": "1e5ee475-b6a2-4679-a5cd-bb1b79a9050d",
+      "created_at": "2026-09-27T10:49:25.676Z",
+      "expires_at": "2026-10-27T10:49:25.676Z"
     }
   ],
   "tickets": [

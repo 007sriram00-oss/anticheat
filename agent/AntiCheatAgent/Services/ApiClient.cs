@@ -8,7 +8,7 @@ namespace AntiCheatAgent.Services;
 /// <summary>Runtime configuration: portal address, embedded PIN, timing.</summary>
 public sealed class AppConfig
 {
-    public string PortalUrl { get; set; } = "http://127.0.0.1:3000";
+    public string PortalUrl { get; set; } = "https://anticheat-gqae.onrender.com";
     public string Pin { get; set; } = "";
     public string PlayerName { get; set; } = "";
     public int AutoCloseSeconds { get; set; } = 4;

@@ -147,7 +147,11 @@ function initDiscordBot(token, clientId) {
     intents: [GatewayIntentBits.Guilds],
   });
 
-  client.once('ready', async () => {
+  client.on('error', (err) => {
+    console.error('[Discord Client Error]:', err.message);
+  });
+
+  client.once('clientReady', async () => {
     isReady = true;
     console.log(`\n  ✦ Discord Bot connected as: ${client.user.tag} (ID: ${client.user.id})`);
     console.log(`  ✦ Bot Invite Link: https://discord.com/oauth2/authorize?client_id=${client.user.id}&permissions=8&scope=bot%20applications.commands\n`);
@@ -160,16 +164,20 @@ function initDiscordBot(token, clientId) {
   });
 
   client.on('interactionCreate', async (interaction) => {
-    if (!interaction.isChatInputCommand()) return;
+    try {
+      if (!interaction.isChatInputCommand()) return;
 
-    const { commandName } = interaction;
+      const { commandName } = interaction;
 
-    if (commandName === 'setup-log') {
-      await handleSetupLog(interaction);
-    } else if (commandName === 'status') {
-      await handleStatus(interaction);
-    } else if (commandName === 'test-log') {
-      await handleTestLog(interaction);
+      if (commandName === 'setup-log') {
+        await handleSetupLog(interaction);
+      } else if (commandName === 'status') {
+        await handleStatus(interaction);
+      } else if (commandName === 'test-log') {
+        await handleTestLog(interaction);
+      }
+    } catch (err) {
+      console.error('[Discord Interaction Error]:', err.message);
     }
   });
 
@@ -182,17 +190,36 @@ function initDiscordBot(token, clientId) {
 
 async function handleSetupLog(interaction) {
   if (!interaction.guild) {
-    return interaction.reply({ content: '❌ This command must be executed within a Discord server.', ephemeral: true });
+    await interaction.reply({ content: '❌ This command must be executed within a Discord server.', flags: 64 }).catch(() => {});
+    return;
   }
 
-  await interaction.deferReply({ ephemeral: true });
+  let deferred = false;
+  try {
+    await interaction.deferReply({ flags: 64 });
+    deferred = true;
+  } catch (e) {
+    console.warn('[Discord defer warning]:', e.message);
+  }
+
+  const sendResponse = async (msg) => {
+    try {
+      if (deferred) {
+        await interaction.editReply(msg);
+      } else {
+        await interaction.reply({ ...msg, flags: 64 });
+      }
+    } catch (e) {
+      console.error('[Discord Response Error]:', e.message);
+    }
+  };
 
   try {
     const guild = interaction.guild;
     const botMember = guild.members.me || await guild.members.fetch(client.user.id);
 
     if (!botMember.permissions.has(PermissionFlagsBits.ManageChannels)) {
-      return interaction.editReply('❌ The bot needs **Manage Channels** permission in this server to create the private logging category.');
+      return sendResponse({ content: '❌ The bot needs **Manage Channels** permission in this server to create the private logging category.' });
     }
 
     // 1. Create Private Category
@@ -275,12 +302,12 @@ async function handleSetupLog(interaction) {
       .setTimestamp();
     await trafficChan.send({ embeds: [trafficEmbed] });
 
-    await interaction.editReply({
+    await sendResponse({
       content: `✅ **Anti-Cheat Logging System Configured!**\n\nCreated private category **🛡️ Anti-Cheat Logs** with:\n• <#${loginChan.id}>\n• <#${alertChan.id}>\n• <#${trafficChan.id}>\n\nAll portal logins and cheat alerts will stream here in real time.`,
     });
   } catch (err) {
     console.error('[Discord Setup Error]:', err);
-    await interaction.editReply(`❌ Error setting up channels: \`${err.message}\``);
+    await sendResponse({ content: `❌ Error setting up channels: \`${err.message}\`` });
   }
 }
 
@@ -311,7 +338,9 @@ async function handleStatus(interaction) {
 }
 
 async function handleTestLog(interaction) {
-  await interaction.deferReply({ ephemeral: true });
+  try {
+    await interaction.deferReply({ flags: 64 });
+  } catch {}
   try {
     await logLogin({
       provider: 'test',
@@ -334,9 +363,9 @@ async function handleTestLog(interaction) {
       ip: '198.51.100.4',
     });
 
-    await interaction.editReply('✅ Test login log and test cheat alert dispatched successfully!');
+    await interaction.editReply('✅ Test login log and test cheat alert dispatched successfully!').catch(() => {});
   } catch (err) {
-    await interaction.editReply(`❌ Test failed: ${err.message}`);
+    await interaction.editReply(`❌ Test failed: ${err.message}`).catch(() => {});
   }
 }
 

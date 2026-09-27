@@ -129,6 +129,8 @@ ensureColumn('reports', 'av_json', "TEXT DEFAULT '{}'");
 ensureColumn('sessions', 'visibility', "TEXT DEFAULT 'private'");
 ensureColumn('sessions', 'user_id', "TEXT DEFAULT ''");
 ensureColumn('sessions', 'created_by', "TEXT DEFAULT ''");
+ensureColumn('users', 'role', "TEXT DEFAULT 'organizer'");
+ensureColumn('tickets', 'user_id', "TEXT DEFAULT ''");
 
 /* ------------------------------------------------ state backup & persistence */
 
@@ -299,8 +301,15 @@ function rowToSession(r) {
   };
 }
 
-function getSessions() {
-  return db.prepare('SELECT * FROM sessions ORDER BY created_at DESC').all().map(rowToSession);
+function getSessions(userId = null, userName = null, isAdmin = false) {
+  if (isAdmin || (!userId && !userName)) {
+    return db.prepare('SELECT * FROM sessions ORDER BY created_at DESC').all().map(rowToSession);
+  }
+  return db.prepare(
+    `SELECT * FROM sessions 
+     WHERE user_id = ? OR (created_by = ? AND created_by != 'Admin' AND created_by != '') OR visibility = 'public' 
+     ORDER BY created_at DESC`
+  ).all(userId || '', userName || '').map(rowToSession);
 }
 
 function getSessionById(sessionId) {
@@ -390,12 +399,12 @@ function deleteDetection(detId) {
 
 /* ----------------------------------------------------------------- tickets */
 
-function createTicket({ title, body = '', priority = 'normal', createdBy = 'Administrator' }) {
+function createTicket({ title, body = '', priority = 'normal', createdBy = 'Administrator', userId = '' }) {
   const ticketId = `TCK-${crypto.randomBytes(3).toString('hex').toUpperCase()}`;
   db.prepare(
-    `INSERT INTO tickets (id, title, body, priority, status, created_by, assigned, created_at)
-     VALUES (?, ?, ?, ?, 'active', ?, '', ?)`
-  ).run(ticketId, title, body, priority, createdBy, nowIso());
+    `INSERT INTO tickets (id, title, body, priority, status, created_by, assigned, created_at, user_id)
+     VALUES (?, ?, ?, ?, 'active', ?, '', ?, ?)`
+  ).run(ticketId, title, body, priority, createdBy, nowIso(), userId || '');
   logEvent('info', 'ticket.created', `Support ticket ${ticketId} opened: ${title}`, { ticketId });
   return getTicket(ticketId);
 }
@@ -406,10 +415,16 @@ function getTicket(ticketId) {
   return { ...r, createdAt: r.created_at };
 }
 
-function getTickets({ status = null, limit = 200 } = {}) {
+function getTickets({ status = null, limit = 200, userId = null, userName = null, isAdmin = false } = {}) {
   let sql = 'SELECT * FROM tickets';
+  const where = [];
   const params = [];
-  if (status) { sql += ' WHERE status = ?'; params.push(status); }
+  if (status) { where.push('status = ?'); params.push(status); }
+  if (!isAdmin && (userId || userName)) {
+    where.push('(created_by = ? OR user_id = ?)');
+    params.push(userName || '', userId || '');
+  }
+  if (where.length) sql += ' WHERE ' + where.join(' AND ');
   sql += ' ORDER BY created_at DESC LIMIT ?';
   params.push(Math.min(Number(limit) || 200, 500));
   return db.prepare(sql).all(...params).map((r) => ({ ...r, createdAt: r.created_at }));
@@ -493,7 +508,7 @@ function saveReport(session, data) {
   return { id: reportId, verdict: data.verdict };
 }
 
-function getReports({ sessionId = null, verdict = null, limit = 200 } = {}) {
+function getReports({ sessionId = null, verdict = null, limit = 200, userId = null, userName = null, isAdmin = false } = {}) {
   let sql = `
     SELECT r.*, s.name AS session_name, s.pin AS session_pin
     FROM reports r JOIN sessions s ON s.id = r.session_id`;
@@ -501,6 +516,10 @@ function getReports({ sessionId = null, verdict = null, limit = 200 } = {}) {
   const params = [];
   if (sessionId) { where.push('r.session_id = ?'); params.push(sessionId); }
   if (verdict)   { where.push('r.verdict = ?');   params.push(verdict); }
+  if (!isAdmin && (userId || userName)) {
+    where.push('(s.user_id = ? OR (s.created_by = ? AND s.created_by != "Admin"))');
+    params.push(userId || '', userName || '');
+  }
   if (where.length) sql += ' WHERE ' + where.join(' AND ');
   sql += ' ORDER BY r.created_at DESC LIMIT ?';
   params.push(Math.min(Number(limit) || 200, 1000));
@@ -562,81 +581,179 @@ function deleteReport(reportId) {
 
 /* ------------------------------------------------------------------- stats */
 
-function getStats() {
-  const sessions = db.prepare('SELECT COUNT(*) AS c FROM sessions').get().c;
-  const activeSessions = db.prepare('SELECT COUNT(*) AS c FROM sessions WHERE active = 1').get().c;
-  const reports = db.prepare('SELECT COUNT(*) AS c FROM reports').get().c;
+function getStats(userId = null, userName = null, isAdmin = false) {
+  if (isAdmin || (!userId && !userName)) {
+    const sessions = db.prepare('SELECT COUNT(*) AS c FROM sessions').get().c;
+    const activeSessions = db.prepare('SELECT COUNT(*) AS c FROM sessions WHERE active = 1').get().c;
+    const reports = db.prepare('SELECT COUNT(*) AS c FROM reports').get().c;
+    const byVerdict = db.prepare(`
+      SELECT
+        SUM(CASE WHEN verdict = 'clean'     THEN 1 ELSE 0 END) AS clean,
+        SUM(CASE WHEN verdict = 'suspicious' THEN 1 ELSE 0 END) AS suspicious,
+        SUM(CASE WHEN verdict = 'detected'   THEN 1 ELSE 0 END) AS detected
+      FROM reports
+    `).get();
+    const devices = db.prepare('SELECT COUNT(DISTINCT device_id) AS c FROM reports').get().c;
+    const last24h = db.prepare(
+      "SELECT COUNT(*) AS c FROM reports WHERE created_at >= datetime('now', '-1 day')"
+    ).get().c;
+
+    const topFindings = db.prepare(`
+      SELECT json_extract(value, '$.title') AS title,
+             json_extract(value, '$.severity') AS severity,
+             COUNT(*) AS count
+      FROM reports, json_each(findings_json)
+      WHERE json_extract(value, '$.severity') IN ('critical', 'high', 'medium')
+      GROUP BY title, severity
+      ORDER BY count DESC LIMIT 8
+    `).all();
+
+    const byGame = db.prepare(`
+      SELECT game, COUNT(*) AS count FROM reports GROUP BY game ORDER BY count DESC
+    `).all();
+
+    const flaggedFiles = db.prepare(`
+      SELECT COUNT(*) AS c
+      FROM reports, json_each(reports.files_json)
+      WHERE json_extract(value, '$.status') IS NOT NULL
+        AND json_extract(value, '$.status') != 'ok'
+    `).get().c;
+
+    const filesScanned = db.prepare(`
+      SELECT COALESCE(SUM(json_extract(summary_json, '$.filesScanned')), 0) AS c FROM reports
+    `).get().c;
+
+    const totalUsers = db.prepare('SELECT COUNT(*) AS c FROM users').get().c;
+    const flaggedReports = (byVerdict.suspicious || 0) + (byVerdict.detected || 0);
+
+    return {
+      sessions,
+      sessionsActive: activeSessions,
+      activeSessions,
+      reports,
+      devices,
+      last24h,
+      clean: byVerdict.clean || 0,
+      suspicious: byVerdict.suspicious || 0,
+      detected: byVerdict.detected || 0,
+      flaggedFiles,
+      filesScanned,
+      topFindings,
+      byGame,
+      totalUsers,
+      flaggedReports,
+    };
+  }
+
+  // Non-admin user: isolate stats to only their sessions & reports
+  const uId = userId || '';
+  const uName = userName || '';
+  const mySessions = db.prepare(
+    'SELECT id FROM sessions WHERE user_id = ? OR (created_by = ? AND created_by != "Admin")'
+  ).all(uId, uName).map((s) => s.id);
+
+  const sessionCount = mySessions.length;
+  const activeSessions = db.prepare(
+    'SELECT COUNT(*) AS c FROM sessions WHERE (user_id = ? OR (created_by = ? AND created_by != "Admin")) AND active = 1'
+  ).get(uId, uName).c;
+
+  if (sessionCount === 0) {
+    return {
+      sessions: 0,
+      sessionsActive: 0,
+      activeSessions: 0,
+      reports: 0,
+      devices: 0,
+      last24h: 0,
+      clean: 0,
+      suspicious: 0,
+      detected: 0,
+      flaggedFiles: 0,
+      filesScanned: 0,
+      topFindings: [],
+      byGame: [],
+      totalUsers: 1,
+      flaggedReports: 0,
+    };
+  }
+
+  const inPlaceholders = mySessions.map(() => '?').join(',');
+  const reports = db.prepare(`SELECT COUNT(*) AS c FROM reports WHERE session_id IN (${inPlaceholders})`).get(...mySessions).c;
   const byVerdict = db.prepare(`
     SELECT
       SUM(CASE WHEN verdict = 'clean'     THEN 1 ELSE 0 END) AS clean,
       SUM(CASE WHEN verdict = 'suspicious' THEN 1 ELSE 0 END) AS suspicious,
       SUM(CASE WHEN verdict = 'detected'   THEN 1 ELSE 0 END) AS detected
-    FROM reports
-  `).get();
-  const devices = db.prepare('SELECT COUNT(DISTINCT device_id) AS c FROM reports').get().c;
-  const last24h = db.prepare(
-    "SELECT COUNT(*) AS c FROM reports WHERE created_at >= datetime('now', '-1 day')"
-  ).get().c;
+    FROM reports WHERE session_id IN (${inPlaceholders})
+  `).get(...mySessions);
+  const devices = db.prepare(`SELECT COUNT(DISTINCT device_id) AS c FROM reports WHERE session_id IN (${inPlaceholders})`).get(...mySessions).c;
+  const last24h = db.prepare(`
+    SELECT COUNT(*) AS c FROM reports WHERE session_id IN (${inPlaceholders}) AND created_at >= datetime('now', '-1 day')
+  `).get(...mySessions).c;
 
   const topFindings = db.prepare(`
     SELECT json_extract(value, '$.title') AS title,
            json_extract(value, '$.severity') AS severity,
            COUNT(*) AS count
     FROM reports, json_each(findings_json)
-    WHERE json_extract(value, '$.severity') IN ('critical', 'high', 'medium')
+    WHERE session_id IN (${inPlaceholders}) AND json_extract(value, '$.severity') IN ('critical', 'high', 'medium')
     GROUP BY title, severity
     ORDER BY count DESC LIMIT 8
-  `).all();
+  `).all(...mySessions);
 
   const byGame = db.prepare(`
-    SELECT game, COUNT(*) AS count FROM reports GROUP BY game ORDER BY count DESC
-  `).all();
+    SELECT game, COUNT(*) AS count FROM reports WHERE session_id IN (${inPlaceholders}) GROUP BY game ORDER BY count DESC
+  `).all(...mySessions);
 
   const flaggedFiles = db.prepare(`
     SELECT COUNT(*) AS c
     FROM reports, json_each(reports.files_json)
-    WHERE json_extract(value, '$.status') IS NOT NULL
+    WHERE session_id IN (${inPlaceholders}) AND json_extract(value, '$.status') IS NOT NULL
       AND json_extract(value, '$.status') != 'ok'
-  `).get().c;
+  `).get(...mySessions).c;
 
   const filesScanned = db.prepare(`
-    SELECT COALESCE(SUM(json_extract(summary_json, '$.filesScanned')), 0) AS c FROM reports
-  `).get().c;
-
-  const sessionsActive = activeSessions;
+    SELECT COALESCE(SUM(json_extract(summary_json, '$.filesScanned')), 0) AS c FROM reports WHERE session_id IN (${inPlaceholders})
+  `).get(...mySessions).c;
 
   return {
-    sessions,
-    sessionsActive,
+    sessions: sessionCount,
+    sessionsActive: activeSessions,
     activeSessions,
     reports,
     devices,
     last24h,
-    clean: byVerdict.clean || 0,
-    suspicious: byVerdict.suspicious || 0,
-    detected: byVerdict.detected || 0,
+    clean: (byVerdict && byVerdict.clean) || 0,
+    suspicious: (byVerdict && byVerdict.suspicious) || 0,
+    detected: (byVerdict && byVerdict.detected) || 0,
     flaggedFiles,
     filesScanned,
     topFindings,
     byGame,
+    totalUsers: 1,
+    flaggedReports: ((byVerdict && byVerdict.suspicious) || 0) + ((byVerdict && byVerdict.detected) || 0),
   };
 }
 
 /* -------------------------------------------------------------------- users */
 
-function upsertUser({ provider, providerId, name, email = '', avatarUrl = '' }) {
+function upsertUser({ provider, providerId, name, email = '', avatarUrl = '', role = 'organizer' }) {
   const existing = db.prepare('SELECT * FROM users WHERE provider = ? AND provider_id = ?').get(provider, providerId);
   const now = nowIso();
+  const adminEmails = ['srirsmsriram029@gmail.com', 'sriram@1242', 'sriram@1242@portal.local'];
+  const isSuperAdmin = (provider === 'local') || adminEmails.includes((email || '').toLowerCase()) || (name || '').toLowerCase().includes('sriram (admin)');
+  const assignedRole = isSuperAdmin ? 'admin' : (role || 'organizer');
+
   if (existing) {
-    db.prepare('UPDATE users SET name = ?, email = ?, avatar_url = ?, last_login = ? WHERE id = ?')
-      .run(name, email, avatarUrl, now, existing.id);
-    logEvent('info', 'auth.login', `User ${name} logged in via ${provider}`, { userId: existing.id, provider });
+    db.prepare('UPDATE users SET name = ?, email = ?, avatar_url = ?, role = ?, last_login = ? WHERE id = ?')
+      .run(name, email, avatarUrl, assignedRole, now, existing.id);
+    logEvent('info', 'auth.login', `User ${name} logged in via ${provider}`, { userId: existing.id, provider, role: assignedRole });
     return db.prepare('SELECT * FROM users WHERE id = ?').get(existing.id);
   }
   const userId = id();
-  db.prepare('INSERT INTO users (id, provider, provider_id, name, email, avatar_url, created_at, last_login) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
-    .run(userId, provider, providerId, name, email, avatarUrl, now, now);
-  logEvent('success', 'auth.signup', `New user ${name} registered via ${provider}`, { userId, provider });
+  db.prepare('INSERT INTO users (id, provider, provider_id, name, email, avatar_url, role, created_at, last_login) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)')
+    .run(userId, provider, providerId, name, email, avatarUrl, assignedRole, now, now);
+  logEvent('success', 'auth.signup', `New user ${name} registered via ${provider}`, { userId, provider, role: assignedRole });
   return db.prepare('SELECT * FROM users WHERE id = ?').get(userId);
 }
 
@@ -652,7 +769,7 @@ function createSessionToken(userId) {
 function getUserBySessionToken(token) {
   if (!token) return null;
   const row = db.prepare(`
-    SELECT u.id, u.provider, u.name, u.email, u.avatar_url AS avatarUrl, s.expires_at
+    SELECT u.id, u.provider, u.name, u.email, u.avatar_url AS avatarUrl, u.role, s.expires_at
     FROM user_sessions s
     JOIN users u ON u.id = s.user_id
     WHERE s.token = ?
@@ -662,12 +779,19 @@ function getUserBySessionToken(token) {
     db.prepare('DELETE FROM user_sessions WHERE token = ?').run(token);
     return null;
   }
+  const adminEmails = ['srirsmsriram029@gmail.com', 'sriram@1242', 'sriram@1242@portal.local'];
+  const isSuperAdmin = (row.provider === 'local') || 
+                       (row.role === 'admin') || 
+                       adminEmails.includes((row.email || '').toLowerCase()) || 
+                       (row.name || '').toLowerCase().includes('sriram (admin)');
   return {
     id: row.id,
     provider: row.provider,
     name: row.name,
     email: row.email,
     avatarUrl: row.avatarUrl,
+    role: isSuperAdmin ? 'admin' : (row.role || 'organizer'),
+    isAdmin: isSuperAdmin,
   };
 }
 

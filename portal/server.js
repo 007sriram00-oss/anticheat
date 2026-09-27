@@ -94,6 +94,19 @@ function sessionUser(req) {
   return store.getUserBySessionToken(token);
 }
 
+function isAdmin(user) {
+  if (!user) return false;
+  if (user.role === 'admin' || user.isAdmin) return true;
+  if (user.provider === 'local') return true;
+  const adminTarget = (process.env.ADMIN_USER || 'sriram@1242').toLowerCase();
+  const email = (user.email || '').toLowerCase();
+  const name = (user.name || '').toLowerCase();
+  if (email === adminTarget || email.startsWith('sriram@1242')) return true;
+  if (email === 'srirsmsriram029@gmail.com') return true;
+  if (name.includes('sriram (admin)') || name === 'sriram') return true;
+  return false;
+}
+
 function setSessionCookie(res, token, req) {
   const isHttps = req ? (req.headers['x-forwarded-proto'] === 'https' || req.socket.encrypted || (req.headers.host && req.headers.host.includes('render.com'))) : false;
   const secureFlag = isHttps ? '; Secure' : '';
@@ -226,9 +239,17 @@ app.get('/api/agent/health', (_req, res) => {
 
 /* ========================================================= dashboard API === */
 
-app.get('/api/stats', (_req, res) => res.json(store.getStats()));
+app.get('/api/stats', (req, res) => {
+  const user = req.user || sessionUser(req);
+  const admin = isAdmin(user);
+  res.json(store.getStats(user ? user.id : null, user ? user.name : null, admin));
+});
 
-app.get('/api/sessions', (_req, res) => res.json(store.getSessions()));
+app.get('/api/sessions', (req, res) => {
+  const user = req.user || sessionUser(req);
+  const admin = isAdmin(user);
+  res.json(store.getSessions(user ? user.id : null, user ? user.name : null, admin));
+});
 
 app.post('/api/sessions', (req, res) => {
   const { name, game, expiresInHours, note, visibility } = req.body || {};
@@ -249,49 +270,80 @@ app.post('/api/sessions', (req, res) => {
 });
 
 app.post('/api/sessions/:id/visibility', (req, res) => {
+  const user = req.user || sessionUser(req);
+  const admin = isAdmin(user);
+  const existing = store.getSessionById(req.params.id);
+  if (!existing) return res.status(404).json({ error: 'Session not found' });
+  if (!admin && existing.userId && existing.userId !== (user ? user.id : '')) {
+    return res.status(403).json({ error: 'Permission denied: Not your session' });
+  }
   const session = store.setSessionVisibility(req.params.id, req.body?.visibility);
-  if (!session) return res.status(404).json({ error: 'Session not found' });
   res.json(session);
 });
 
 app.post('/api/sessions/:id/active', (req, res) => {
-  const session = store.setSessionActive(req.params.id, !!req.body?.active);
-  if (!session) return res.status(404).json({ error: 'Session not found' });
   const user = req.user || sessionUser(req);
+  const admin = isAdmin(user);
+  const existing = store.getSessionById(req.params.id);
+  if (!existing) return res.status(404).json({ error: 'Session not found' });
+  if (!admin && existing.userId && existing.userId !== (user ? user.id : '')) {
+    return res.status(403).json({ error: 'Permission denied: Not your session' });
+  }
+  const session = store.setSessionActive(req.params.id, !!req.body?.active);
   discordBot.logSessionStatus({ session, action: session.active ? 'activated' : 'paused', user, ip: req.ip });
   res.json(session);
 });
 
 app.delete('/api/sessions/:id', (req, res) => {
+  const user = req.user || sessionUser(req);
+  const admin = isAdmin(user);
   const existing = store.getSessionById(req.params.id);
-  if (!store.deleteSession(req.params.id)) return res.status(404).json({ error: 'Session not found' });
-  if (existing) {
-    const user = req.user || sessionUser(req);
-    discordBot.logSessionStatus({ session: existing, action: 'deleted', user, ip: req.ip });
+  if (!existing) return res.status(404).json({ error: 'Session not found' });
+  if (!admin && existing.userId && existing.userId !== (user ? user.id : '')) {
+    return res.status(403).json({ error: 'Permission denied: Not your session' });
   }
+  if (!store.deleteSession(req.params.id)) return res.status(404).json({ error: 'Session not found' });
+  discordBot.logSessionStatus({ session: existing, action: 'deleted', user, ip: req.ip });
   res.json({ ok: true });
 });
 
 app.get('/api/reports', (req, res) => {
+  const user = req.user || sessionUser(req);
+  const admin = isAdmin(user);
   res.json(store.getReports({
     sessionId: req.query.sessionId || null,
     verdict: req.query.verdict || null,
     limit: req.query.limit || 200,
+    userId: user ? user.id : null,
+    userName: user ? user.name : null,
+    isAdmin: admin,
   }));
 });
 
 app.get('/api/reports/:id', (req, res) => {
+  const user = req.user || sessionUser(req);
+  const admin = isAdmin(user);
   const report = store.getReportById(req.params.id);
   if (!report) return res.status(404).json({ error: 'Report not found' });
+  if (!admin) {
+    const session = store.getSessionById(report.sessionId);
+    if (!session || (session.userId && session.userId !== (user ? user.id : ''))) {
+      return res.status(403).json({ error: 'Permission denied' });
+    }
+  }
   res.json(report);
 });
 
 app.delete('/api/reports/:id', (req, res) => {
+  const user = req.user || sessionUser(req);
+  if (!isAdmin(user)) return res.status(403).json({ error: 'Admin only' });
   if (!store.deleteReport(req.params.id)) return res.status(404).json({ error: 'Report not found' });
   res.json({ ok: true });
 });
 
 app.get('/api/events', (req, res) => {
+  const user = req.user || sessionUser(req);
+  if (!isAdmin(user)) return res.json([]);
   res.json(store.getEvents({
     limit: req.query.limit || 200,
     level: req.query.level || null,
@@ -321,6 +373,8 @@ app.post('/api/detections', (req, res) => {
 });
 
 app.delete('/api/detections/:id', (req, res) => {
+  const user = req.user || sessionUser(req);
+  if (!isAdmin(user)) return res.status(403).json({ error: 'Admin only' });
   if (!store.deleteDetection(req.params.id)) return res.status(404).json({ error: 'Result not found' });
   res.json({ ok: true });
 });
@@ -328,16 +382,26 @@ app.delete('/api/detections/:id', (req, res) => {
 /* ============================================================= tickets ==== */
 
 app.get('/api/tickets', (req, res) => {
-  res.json(store.getTickets({ status: req.query.status || null }));
+  const user = req.user || sessionUser(req);
+  const admin = isAdmin(user);
+  res.json(store.getTickets({
+    status: req.query.status || null,
+    userId: user ? user.id : null,
+    userName: user ? user.name : null,
+    isAdmin: admin,
+  }));
 });
 
 app.post('/api/tickets', (req, res) => {
   const { title, body, priority } = req.body || {};
   if (!title || !title.trim()) return res.status(400).json({ error: 'Title is required' });
+  const user = req.user || sessionUser(req);
   const ticket = store.createTicket({
     title: title.trim().slice(0, 160),
     body: String(body || '').slice(0, 4000),
     priority: ['low', 'normal', 'high', 'urgent'].includes(priority) ? priority : 'normal',
+    createdBy: user ? (user.name || user.email || 'Anonymous') : 'Anonymous',
+    userId: user ? user.id : '',
   });
   res.status(201).json(ticket);
 });
@@ -451,7 +515,15 @@ function successDest(rec, token) {
 app.get('/api/me', (req, res) => {
   const user = sessionUser(req);
   if (!user) return res.json({ authenticated: false, user: null });
-  return res.json({ authenticated: true, user });
+  const admin = isAdmin(user);
+  return res.json({
+    authenticated: true,
+    user: {
+      ...user,
+      isAdmin: admin,
+      role: admin ? 'admin' : (user.role || 'organizer'),
+    },
+  });
 });
 
 // Logout endpoint

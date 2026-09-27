@@ -2065,10 +2065,13 @@ function updateUserUi() {
     }
     if (nameEl) nameEl.textContent = currentUser.name || 'Player';
     if (subEl) {
-      subEl.textContent = currentUser.provider === 'discord' ? 'Discord Connected'
-        : currentUser.provider === 'google' ? 'Google Account' : 'Local account';
+      if (currentUser.isAdmin) {
+        subEl.innerHTML = `<span style="color:#f59e0b;font-weight:600">👑 Super Admin</span>`;
+      } else {
+        subEl.innerHTML = `<span style="color:#38bdf8;font-weight:500">🛡️ Organizer (Private)</span>`;
+      }
     }
-    if (chip) chip.title = `${currentUser.name} (${currentUser.provider}) — Click for options`;
+    if (chip) chip.title = `${currentUser.name} (${currentUser.isAdmin ? 'Super Admin' : 'Organizer'}) — Click for options`;
   } else {
     if (topbarBtn) topbarBtn.style.display = 'inline-flex';
     if (avatarEl) {
@@ -2109,9 +2112,14 @@ function toggleUserMenu(ev) {
   if (popName) popName.textContent = currentUser.name || 'Player';
   if (popEmail) popEmail.textContent = currentUser.email || 'No email shared';
   if (popBadge) {
-    const prov = currentUser.provider;
-    popBadge.className = `user-menu-badge ${prov === 'discord' || prov === 'google' ? prov : 'local'}`;
-    popBadge.textContent = prov === 'discord' ? 'Discord' : prov === 'google' ? 'Google' : 'Local account';
+    if (currentUser.isAdmin) {
+      popBadge.className = 'user-menu-badge local';
+      popBadge.textContent = '👑 Super Admin';
+    } else {
+      const prov = currentUser.provider;
+      popBadge.className = `user-menu-badge ${prov === 'discord' || prov === 'google' ? prov : 'local'}`;
+      popBadge.textContent = `🛡️ Organizer (${prov === 'discord' ? 'Discord' : prov === 'google' ? 'Google' : 'Local'})`;
+    }
   }
   if (actionText) actionText.textContent = 'Sign Out';
 
@@ -2348,6 +2356,7 @@ function init() {
   $$('.nav-item').forEach((b) => b.addEventListener('click', () => {
     if (b.dataset.toggle || !b.dataset.page) return;
     state.search = '';
+    if (window.innerWidth <= 860) document.body.classList.remove('sb-open');
     goto(b.dataset.page, b.dataset.key ? { key: b.dataset.key } : {});
   }));
 
@@ -2363,6 +2372,7 @@ function init() {
     const pageBtn = ev.target.closest('[data-page]');
     if (pageBtn && !pageBtn.classList.contains('nav-item')) {
       state.search = '';
+      if (window.innerWidth <= 860) document.body.classList.remove('sb-open');
       goto(pageBtn.dataset.page, pageBtn.dataset.key ? { key: pageBtn.dataset.key } : {});
       return;
     }
@@ -2370,11 +2380,19 @@ function init() {
     if (actionEl) handleAction(actionEl, ev);
   });
 
-  // sidebar toggle
+  // sidebar toggle (desktop collapse / mobile off-canvas drawer)
   $('#btn-sidebar').addEventListener('click', () => {
     if (window.innerWidth <= 860) document.body.classList.toggle('sb-open');
     else document.body.classList.toggle('sb-collapsed');
   });
+
+  // backdrop click on mobile closes the drawer
+  const backdrop = $('#sidebar-backdrop');
+  if (backdrop) {
+    backdrop.addEventListener('click', () => {
+      document.body.classList.remove('sb-open');
+    });
+  }
 
   // bell → log
   $('#btn-bell').addEventListener('click', () => { state.fSource = 'app'; state.fLevel = ''; goto('log'); });

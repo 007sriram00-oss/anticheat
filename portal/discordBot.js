@@ -345,7 +345,8 @@ async function handleStatus(interaction) {
 
 async function handlePing(interaction) {
   try {
-    const sent = await interaction.deferReply({ fetchReply: true });
+    await interaction.deferReply();
+    const sent = await interaction.fetchReply();
     const roundtrip = sent.createdTimestamp - interaction.createdTimestamp;
     const wsPing = client.ws.ping;
 

@@ -293,6 +293,202 @@ app.delete('/api/chat', (_req, res) => {
   res.json({ ok: true });
 });
 
+/* ======================================================= OAuth & Auth ==== */
+
+// Load optional local auth config (ignored by git for secret protection)
+const AUTH_CONFIG_FILE = path.join(__dirname, 'auth.json');
+if (fs.existsSync(AUTH_CONFIG_FILE)) {
+  try {
+    const authCfg = JSON.parse(fs.readFileSync(AUTH_CONFIG_FILE, 'utf8'));
+    for (const [k, v] of Object.entries(authCfg)) {
+      if (!process.env[k] && v) process.env[k] = v;
+    }
+  } catch (e) {
+    console.error('Failed to load auth.json:', e.message);
+  }
+}
+
+const DISCORD_CLIENT_ID = process.env.DISCORD_CLIENT_ID || '';
+const DISCORD_CLIENT_SECRET = process.env.DISCORD_CLIENT_SECRET || '';
+
+const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '';
+const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET || '';
+
+function parseCookies(req) {
+  const list = {};
+  const rc = req.headers.cookie;
+  if (rc) {
+    rc.split(';').forEach((cookie) => {
+      const parts = cookie.split('=');
+      list[parts.shift().trim()] = decodeURIComponent(parts.join('='));
+    });
+  }
+  return list;
+}
+
+function getBaseUrl(req) {
+  if (process.env.PUBLIC_URL) return process.env.PUBLIC_URL.replace(/\/$/, '');
+  const proto = req.headers['x-forwarded-proto'] || (req.socket.encrypted ? 'https' : 'http');
+  const host = req.headers['x-forwarded-host'] || req.headers.host;
+  return `${proto}://${host}`;
+}
+
+// User info endpoint
+app.get('/api/me', (req, res) => {
+  const cookies = parseCookies(req);
+  const token = cookies.anticheat_session;
+  const user = store.getUserBySessionToken(token);
+  if (!user) return res.json({ authenticated: false, user: null });
+  return res.json({ authenticated: true, user });
+});
+
+// Logout endpoint
+app.post('/auth/logout', (req, res) => {
+  const cookies = parseCookies(req);
+  const token = cookies.anticheat_session;
+  if (token) store.deleteSessionToken(token);
+  res.setHeader('Set-Cookie', 'anticheat_session=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0');
+  res.json({ ok: true });
+});
+
+app.get('/auth/logout', (req, res) => {
+  const cookies = parseCookies(req);
+  const token = cookies.anticheat_session;
+  if (token) store.deleteSessionToken(token);
+  res.setHeader('Set-Cookie', 'anticheat_session=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0');
+  res.redirect('/');
+});
+
+// Discord OAuth
+app.get('/auth/discord', (req, res) => {
+  const base = getBaseUrl(req);
+  const redirectUri = `${base}/auth/discord/callback`;
+  const url = `https://discord.com/api/oauth2/authorize?client_id=${encodeURIComponent(DISCORD_CLIENT_ID)}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=identify%20email`;
+  res.redirect(url);
+});
+
+app.get('/auth/discord/callback', async (req, res) => {
+  const { code, error } = req.query;
+  if (error || !code) return res.redirect('/?auth_error=' + encodeURIComponent(error || 'cancelled'));
+
+  const base = getBaseUrl(req);
+  const redirectUri = `${base}/auth/discord/callback`;
+
+  try {
+    const params = new URLSearchParams({
+      client_id: DISCORD_CLIENT_ID,
+      client_secret: DISCORD_CLIENT_SECRET,
+      grant_type: 'authorization_code',
+      code: String(code),
+      redirect_uri: redirectUri,
+    });
+
+    const tokenRes = await fetch('https://discord.com/api/oauth2/token', {
+      method: 'POST',
+      body: params,
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    });
+
+    if (!tokenRes.ok) {
+      const errTxt = await tokenRes.text();
+      store.logEvent('error', 'auth.discord', 'Discord token exchange failed', { error: errTxt });
+      return res.redirect('/?auth_error=' + encodeURIComponent('Discord token exchange failed'));
+    }
+
+    const tokenData = await tokenRes.json();
+    const userRes = await fetch('https://discord.com/api/users/@me', {
+      headers: { Authorization: `Bearer ${tokenData.access_token}` },
+    });
+
+    if (!userRes.ok) {
+      return res.redirect('/?auth_error=' + encodeURIComponent('Failed to fetch Discord user'));
+    }
+
+    const discordUser = await userRes.json();
+    const avatarUrl = discordUser.avatar
+      ? `https://cdn.discordapp.com/avatars/${discordUser.id}/${discordUser.avatar}.png`
+      : 'https://cdn.discordapp.com/embed/avatars/0.png';
+
+    const user = store.upsertUser({
+      provider: 'discord',
+      providerId: discordUser.id,
+      name: discordUser.global_name || discordUser.username,
+      email: discordUser.email || '',
+      avatarUrl,
+    });
+
+    const sessionToken = store.createSessionToken(user.id);
+    res.setHeader('Set-Cookie', `anticheat_session=${sessionToken}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${30 * 24 * 3600}`);
+    res.redirect('/?auth=success');
+  } catch (err) {
+    console.error('Discord OAuth error:', err);
+    res.redirect('/?auth_error=' + encodeURIComponent(err.message));
+  }
+});
+
+// Google OAuth
+app.get('/auth/google', (req, res) => {
+  const base = getBaseUrl(req);
+  const redirectUri = `${base}/auth/google/callback`;
+  const url = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${encodeURIComponent(GOOGLE_CLIENT_ID)}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=openid%20profile%20email&prompt=select_account`;
+  res.redirect(url);
+});
+
+app.get('/auth/google/callback', async (req, res) => {
+  const { code, error } = req.query;
+  if (error || !code) return res.redirect('/?auth_error=' + encodeURIComponent(error || 'cancelled'));
+
+  const base = getBaseUrl(req);
+  const redirectUri = `${base}/auth/google/callback`;
+
+  try {
+    const params = new URLSearchParams({
+      client_id: GOOGLE_CLIENT_ID,
+      client_secret: GOOGLE_CLIENT_SECRET,
+      grant_type: 'authorization_code',
+      code: String(code),
+      redirect_uri: redirectUri,
+    });
+
+    const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
+      method: 'POST',
+      body: params,
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    });
+
+    if (!tokenRes.ok) {
+      const errTxt = await tokenRes.text();
+      store.logEvent('error', 'auth.google', 'Google token exchange failed', { error: errTxt });
+      return res.redirect('/?auth_error=' + encodeURIComponent('Google token exchange failed'));
+    }
+
+    const tokenData = await tokenRes.json();
+    const userRes = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+      headers: { Authorization: `Bearer ${tokenData.access_token}` },
+    });
+
+    if (!userRes.ok) {
+      return res.redirect('/?auth_error=' + encodeURIComponent('Failed to fetch Google user profile'));
+    }
+
+    const googleUser = await userRes.json();
+    const user = store.upsertUser({
+      provider: 'google',
+      providerId: googleUser.sub,
+      name: googleUser.name || 'Google User',
+      email: googleUser.email || '',
+      avatarUrl: googleUser.picture || '',
+    });
+
+    const sessionToken = store.createSessionToken(user.id);
+    res.setHeader('Set-Cookie', `anticheat_session=${sessionToken}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${30 * 24 * 3600}`);
+    res.redirect('/?auth=success');
+  } catch (err) {
+    console.error('Google OAuth error:', err);
+    res.redirect('/?auth_error=' + encodeURIComponent(err.message));
+  }
+});
+
 /* ============================================================ download ==== */
 
 /* Agent distributable served by the Download page.

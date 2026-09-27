@@ -1998,6 +1998,96 @@ function confirmDialog(title, msg, onOk) {
 
 function closeModals() {
   $$('.modal-backdrop').forEach((m) => { m.hidden = true; });
+  const pop = $('#user-menu-popover');
+  if (pop) pop.hidden = true;
+}
+
+function openLoginModal() {
+  closeModals();
+  const m = $('#modal-login');
+  if (m) m.hidden = false;
+}
+
+let currentUser = null;
+
+async function checkAuth() {
+  try {
+    const res = await fetch('/api/me');
+    const data = await res.json();
+    currentUser = data.authenticated ? data.user : null;
+    updateUserUi();
+  } catch {
+    currentUser = null;
+    updateUserUi();
+  }
+}
+
+function updateUserUi() {
+  const chip = $('#user-chip-btn');
+  const avatarEl = $('#user-avatar');
+  const nameEl = $('#user-name');
+  const subEl = $('#user-sub');
+  const topbarBtn = $('#btn-topbar-login');
+
+  if (currentUser) {
+    if (topbarBtn) topbarBtn.style.display = 'none';
+    if (avatarEl) {
+      if (currentUser.avatarUrl) {
+        avatarEl.innerHTML = `<img src="${currentUser.avatarUrl}" class="avatar-img" alt="avatar" />`;
+      } else {
+        avatarEl.textContent = (currentUser.name || 'U').charAt(0).toUpperCase();
+      }
+    }
+    if (nameEl) nameEl.textContent = currentUser.name || 'Player';
+    if (subEl) subEl.textContent = currentUser.provider === 'discord' ? 'Discord Connected' : 'Google Account';
+    if (chip) chip.title = `${currentUser.name} (${currentUser.provider}) — Click for options`;
+  } else {
+    if (topbarBtn) topbarBtn.style.display = 'inline-flex';
+    if (avatarEl) {
+      avatarEl.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>`;
+    }
+    if (nameEl) nameEl.textContent = 'Guest User';
+    if (subEl) subEl.textContent = 'Sign in with Discord / Google';
+    if (chip) chip.title = 'Click to sign in';
+  }
+}
+
+function toggleUserMenu(ev) {
+  if (ev) ev.stopPropagation();
+  if (!currentUser) {
+    openLoginModal();
+    return;
+  }
+  const pop = $('#user-menu-popover');
+  if (!pop) return;
+  if (!pop.hidden) {
+    pop.hidden = true;
+    return;
+  }
+
+  const popAvatar = $('#pop-avatar');
+  const popName = $('#pop-name');
+  const popEmail = $('#pop-email');
+  const popBadge = $('#pop-provider-badge');
+  const actionText = $('#user-action-text');
+
+  if (popAvatar) {
+    if (currentUser.avatarUrl) {
+      popAvatar.innerHTML = `<img src="${currentUser.avatarUrl}" class="avatar-img" alt="avatar" />`;
+    } else {
+      popAvatar.textContent = (currentUser.name || 'U').charAt(0).toUpperCase();
+    }
+  }
+  if (popName) popName.textContent = currentUser.name || 'Player';
+  if (popEmail) popEmail.textContent = currentUser.email || 'No email shared';
+  if (popBadge) {
+    const isDiscord = currentUser.provider === 'discord';
+    popBadge.className = `user-menu-badge ${isDiscord ? 'discord' : 'google'}`;
+    popBadge.textContent = isDiscord ? 'Discord' : 'Google';
+  }
+  if (actionText) actionText.textContent = 'Sign Out';
+
+  pop.hidden = false;
 }
 
 /* ============================= actions ============================= */
@@ -2360,6 +2450,54 @@ function init() {
   document.addEventListener('keydown', (ev) => {
     if (ev.key === 'Escape') closeModals();
   });
+
+  // Auth event listeners
+  const userChip = $('#user-chip-btn');
+  if (userChip) userChip.addEventListener('click', toggleUserMenu);
+
+  const topbarLogin = $('#btn-topbar-login');
+  if (topbarLogin) topbarLogin.addEventListener('click', openLoginModal);
+
+  const userAction = $('#btn-user-action');
+  if (userAction) {
+    userAction.addEventListener('click', async () => {
+      if (currentUser) {
+        try {
+          await fetch('/auth/logout', { method: 'POST' });
+          currentUser = null;
+          updateUserUi();
+          const pop = $('#user-menu-popover');
+          if (pop) pop.hidden = true;
+          toast('Signed out successfully', 'info');
+        } catch {
+          location.href = '/auth/logout';
+        }
+      } else {
+        openLoginModal();
+      }
+    });
+  }
+
+  // Dismiss popover on click outside
+  document.addEventListener('click', (ev) => {
+    const pop = $('#user-menu-popover');
+    if (pop && !pop.hidden && !ev.target.closest('#user-menu-popover') && !ev.target.closest('#user-chip-btn')) {
+      pop.hidden = true;
+    }
+  });
+
+  // Check URL params for login notifications
+  if (location.search.includes('auth=success')) {
+    toast('Signed in successfully! Welcome to Anti-Cheat Portal.', 'success');
+    history.replaceState(null, '', location.pathname);
+  } else if (location.search.includes('auth_error=')) {
+    const params = new URLSearchParams(location.search);
+    toast(params.get('auth_error') || 'Authentication failed', 'error');
+    history.replaceState(null, '', location.pathname);
+  }
+
+  // Check auth status
+  checkAuth();
 
   // boot
   goto('overview', { noScroll: true });

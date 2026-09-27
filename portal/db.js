@@ -84,9 +84,29 @@ db.exec(`
     text    TEXT NOT NULL
   );
 
+  CREATE TABLE IF NOT EXISTS users (
+    id          TEXT PRIMARY KEY,
+    provider    TEXT NOT NULL,
+    provider_id TEXT NOT NULL,
+    name        TEXT NOT NULL,
+    email       TEXT DEFAULT '',
+    avatar_url  TEXT DEFAULT '',
+    created_at  TEXT NOT NULL,
+    last_login  TEXT NOT NULL,
+    UNIQUE(provider, provider_id)
+  );
+
+  CREATE TABLE IF NOT EXISTS user_sessions (
+    token       TEXT PRIMARY KEY,
+    user_id     TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    created_at  TEXT NOT NULL,
+    expires_at  TEXT NOT NULL
+  );
+
   CREATE INDEX IF NOT EXISTS idx_reports_session ON reports(session_id);
   CREATE INDEX IF NOT EXISTS idx_reports_verdict  ON reports(verdict);
   CREATE INDEX IF NOT EXISTS idx_events_ts        ON events(ts DESC);
+  CREATE INDEX IF NOT EXISTS idx_user_sessions    ON user_sessions(token);
 `);
 
 /* ---------------------------------------------------- schema migrations */
@@ -518,7 +538,65 @@ function getStats() {
   };
 }
 
+/* -------------------------------------------------------------------- users */
+
+function upsertUser({ provider, providerId, name, email = '', avatarUrl = '' }) {
+  const existing = db.prepare('SELECT * FROM users WHERE provider = ? AND provider_id = ?').get(provider, providerId);
+  const now = nowIso();
+  if (existing) {
+    db.prepare('UPDATE users SET name = ?, email = ?, avatar_url = ?, last_login = ? WHERE id = ?')
+      .run(name, email, avatarUrl, now, existing.id);
+    logEvent('info', 'auth.login', `User ${name} logged in via ${provider}`, { userId: existing.id, provider });
+    return db.prepare('SELECT * FROM users WHERE id = ?').get(existing.id);
+  }
+  const userId = id();
+  db.prepare('INSERT INTO users (id, provider, provider_id, name, email, avatar_url, created_at, last_login) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+    .run(userId, provider, providerId, name, email, avatarUrl, now, now);
+  logEvent('success', 'auth.signup', `New user ${name} registered via ${provider}`, { userId, provider });
+  return db.prepare('SELECT * FROM users WHERE id = ?').get(userId);
+}
+
+function createSessionToken(userId) {
+  const token = crypto.randomBytes(32).toString('hex');
+  const now = nowIso();
+  const expiresAt = new Date(Date.now() + 30 * 24 * 3600 * 1000).toISOString();
+  db.prepare('INSERT INTO user_sessions (token, user_id, created_at, expires_at) VALUES (?, ?, ?, ?)')
+    .run(token, userId, now, expiresAt);
+  return token;
+}
+
+function getUserBySessionToken(token) {
+  if (!token) return null;
+  const row = db.prepare(`
+    SELECT u.id, u.provider, u.name, u.email, u.avatar_url AS avatarUrl, s.expires_at
+    FROM user_sessions s
+    JOIN users u ON u.id = s.user_id
+    WHERE s.token = ?
+  `).get(token);
+  if (!row) return null;
+  if (new Date(row.expires_at).getTime() < Date.now()) {
+    db.prepare('DELETE FROM user_sessions WHERE token = ?').run(token);
+    return null;
+  }
+  return {
+    id: row.id,
+    provider: row.provider,
+    name: row.name,
+    email: row.email,
+    avatarUrl: row.avatarUrl,
+  };
+}
+
+function deleteSessionToken(token) {
+  if (!token) return;
+  db.prepare('DELETE FROM user_sessions WHERE token = ?').run(token);
+}
+
 module.exports = {
+  upsertUser,
+  createSessionToken,
+  getUserBySessionToken,
+  deleteSessionToken,
   db,
   nowIso,
   id,

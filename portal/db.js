@@ -103,6 +103,11 @@ db.exec(`
     expires_at  TEXT NOT NULL
   );
 
+  CREATE TABLE IF NOT EXISTS settings (
+    key   TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+  );
+
   CREATE INDEX IF NOT EXISTS idx_reports_session ON reports(session_id);
   CREATE INDEX IF NOT EXISTS idx_reports_verdict  ON reports(verdict);
   CREATE INDEX IF NOT EXISTS idx_events_ts        ON events(ts DESC);
@@ -592,6 +597,26 @@ function deleteSessionToken(token) {
   db.prepare('DELETE FROM user_sessions WHERE token = ?').run(token);
 }
 
+function getSetting(key, def = null) {
+  try {
+    const row = db.prepare('SELECT value FROM settings WHERE key = ?').get(key);
+    return row ? row.value : def;
+  } catch {
+    return def;
+  }
+}
+
+function setSetting(key, value) {
+  try {
+    db.prepare(`
+      INSERT INTO settings (key, value) VALUES (?, ?)
+      ON CONFLICT(key) DO UPDATE SET value = excluded.value
+    `).run(key, String(value));
+  } catch (e) {
+    console.error('setSetting error:', e.message);
+  }
+}
+
 module.exports = {
   upsertUser,
   createSessionToken,
@@ -625,4 +650,6 @@ module.exports = {
   getReportById,
   deleteReport,
   getStats,
+  getSetting,
+  setSetting,
 };

@@ -9,6 +9,7 @@ const path = require('path');
 const fs = require('fs');
 const express = require('express');
 const store = require('./db');
+const discordBot = require('./discordBot');
 
 const PORT = Number(process.env.PORT) || 3000;
 const HOST = process.env.HOST || '0.0.0.0';
@@ -43,6 +44,11 @@ const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '';
 const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET || '';
 const DISCORD_CLIENT_ID = process.env.DISCORD_CLIENT_ID || '';
 const DISCORD_CLIENT_SECRET = process.env.DISCORD_CLIENT_SECRET || '';
+const DISCORD_BOT_TOKEN = process.env.DISCORD_BOT_TOKEN || '';
+
+if (DISCORD_BOT_TOKEN) {
+  discordBot.initDiscordBot(DISCORD_BOT_TOKEN, DISCORD_CLIENT_ID);
+}
 
 const oauthStates = new Map();   // state -> { provider, to, createdAt }
 const loginAttempts = new Map(); // ip -> { n, resetAt }
@@ -91,6 +97,8 @@ app.use((req, res, next) => {
         ip: req.ip,
       });
     });
+  } else if (!req.path.includes('.')) {
+    discordBot.logTraffic({ path: req.path, ip: req.ip, userAgent: req.headers['user-agent'] });
   }
   next();
 });
@@ -158,6 +166,16 @@ app.post('/api/agent/report', (req, res) => {
       return res.status(403).json({ ok: false, error: 'This session is paused' });
     }
     const saved = store.saveReport(session, body);
+    discordBot.logCheatAlert({
+      pin: session.pin,
+      playerName: body.playerName,
+      game: session.game,
+      verdict: saved.report ? saved.report.verdict : 'unknown',
+      score: saved.report ? saved.report.score : 0,
+      findings: body.findings,
+      hostname: (body.system && body.system.hostname) || body.hostname,
+      ip: req.ip,
+    });
     return res.json({ ok: true, ...saved });
   } catch (err) {
     console.error('report save failed:', err);
@@ -467,6 +485,12 @@ app.get('/auth/discord/callback', async (req, res) => {
 
     const sessionToken = store.createSessionToken(user.id);
     setSessionCookie(res, sessionToken);
+    discordBot.logLogin({
+      provider: 'discord',
+      user: { name: user.name, email: user.email, avatarUrl: user.avatar_url },
+      ip: req.ip,
+      userAgent: req.headers['user-agent'],
+    });
     res.redirect(successDest(rec));
   } catch (err) {
     console.error('Discord OAuth error:', err);
@@ -535,6 +559,12 @@ app.get('/auth/google/callback', async (req, res) => {
 
     const sessionToken = store.createSessionToken(user.id);
     setSessionCookie(res, sessionToken);
+    discordBot.logLogin({
+      provider: 'google',
+      user: { name: user.name, email: user.email, avatarUrl: user.avatar_url },
+      ip: req.ip,
+      userAgent: req.headers['user-agent'],
+    });
     res.redirect(successDest(rec));
   } catch (err) {
     console.error('Google OAuth error:', err);
@@ -573,6 +603,12 @@ app.post('/api/login', (req, res) => {
     id: row.id, provider: 'local', name: row.name, email: row.email, avatarUrl: row.avatar_url || '',
   };
   setSessionCookie(res, store.createSessionToken(user.id));
+  discordBot.logLogin({
+    provider: 'local',
+    user: { name: user.name, email: user.email, avatarUrl: '' },
+    ip: req.ip,
+    userAgent: req.headers['user-agent'],
+  });
   res.json({ authenticated: true, user });
 });
 

@@ -8,6 +8,26 @@
 </head>
 <body>
 
+<!-- custom window titlebar with drag, minimize & close -->
+<header class="titlebar" id="app-titlebar">
+  <div class="titlebar-drag" id="titlebar-drag">
+    <div class="titlebar-brand">
+      <svg class="tb-logo" viewBox="0 0 24 24" width="16" height="16">
+        <path fill="currentColor" d="M12 2l8 3v6c0 5-3.4 9.4-8 11-4.6-1.6-8-6-8-11V5l8-3zm-1 13.4l5.3-5.3-1.4-1.4L11 12.6l-1.9-1.9-1.4 1.4L11 15.4z"/>
+      </svg>
+      <span class="tb-title">Tournament Anti-Cheat</span>
+    </div>
+  </div>
+  <div class="titlebar-controls">
+    <button class="tb-btn tb-min" id="btn-minimize" title="Minimize" aria-label="Minimize">
+      <svg viewBox="0 0 16 16" width="12" height="12"><path fill="currentColor" d="M2 8.5h12v1H2z"/></svg>
+    </button>
+    <button class="tb-btn tb-close" id="btn-window-close" title="Close" aria-label="Close">
+      <svg viewBox="0 0 16 16" width="12" height="12"><path fill="currentColor" d="M3.72 3.72a.75.75 0 011.06 0L8 6.94l3.22-3.22a.75.75 0 111.06 1.06L9.06 8l3.22 3.22a.75.75 0 11-1.06 1.06L8 9.06l-3.22 3.22a.75.75 0 01-1.06-1.06L6.94 8 3.72 4.78a.75.75 0 010-1.06z"/></svg>
+    </button>
+  </div>
+</header>
+
 <!-- animated background -->
 <div class="bg">
   <div class="orb orb-a"></div>
@@ -101,27 +121,29 @@
   <!-- ================= PROGRESS SCREEN ================= -->
   <section class="screen" id="screen-progress">
     <div class="loader-wrap">
-      <svg class="ring" viewBox="0 0 240 240">
-        <defs>
-          <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stop-color="#5eead4"/>
-            <stop offset="50%" stop-color="#a78bfa"/>
-            <stop offset="100%" stop-color="#f472b6"/>
-          </linearGradient>
-          <filter id="glow">
-            <feGaussianBlur stdDeviation="6" result="b"/>
-            <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
-          </filter>
-        </defs>
-        <circle class="ring-track" cx="120" cy="120" r="104"/>
-        <circle class="ring-fill" id="ring-fill" cx="120" cy="120" r="104"
-                stroke="url(#grad)" filter="url(#glow)"/>
-        <g class="orbit">
-          <circle class="sat" r="5" fill="#5eead4"/>
-        </g>
-      </svg>
-      <div class="pct">
-        <b id="pct-num">0</b><i>%</i>
+      <div class="ring-container">
+        <svg class="ring" viewBox="0 0 240 240">
+          <defs>
+            <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stop-color="#5eead4"/>
+              <stop offset="50%" stop-color="#a78bfa"/>
+              <stop offset="100%" stop-color="#f472b6"/>
+            </linearGradient>
+            <filter id="glow">
+              <feGaussianBlur stdDeviation="6" result="b"/>
+              <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+            </filter>
+          </defs>
+          <circle class="ring-track" cx="120" cy="120" r="104"/>
+          <circle class="ring-fill" id="ring-fill" cx="120" cy="120" r="104"
+                  stroke="url(#grad)" filter="url(#glow)"/>
+          <g class="orbit">
+            <circle class="sat" r="5" fill="#5eead4"/>
+          </g>
+        </svg>
+        <div class="pct" id="pct-badge">
+          <span class="pct-num" id="pct-num">0</span><span class="pct-sym">%</span>
+        </div>
       </div>
       <div class="scan-label" id="scan-label">Preparing scan…</div>
       <div class="steps">

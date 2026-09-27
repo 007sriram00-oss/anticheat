@@ -75,13 +75,29 @@ public partial class MainWindow : Window
     [DllImport("dwmapi.dll")]
     private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attr, ref int value, int size);
 
+    [DllImport("user32.dll")]
+    private static extern bool ReleaseCapture();
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr SendMessage(IntPtr hWnd, int Msg, IntPtr wParam, IntPtr lParam);
+
+    private const int WM_NCLBUTTONDOWN = 0xA1;
+    private const int HTCAPTION = 0x2;
+
     private void ApplyRoundedCorners()
     {
         try
         {
             var hwnd = new WindowInteropHelper(this).Handle;
-            const int attr = 33; // DWMWA_WINDOW_CORNER_PREFERENCE
-            var preference = 2;  // DWMWCP_ROUND
+
+            // DWMWA_USE_IMMERSIVE_DARK_MODE (20 on Win10 20H1+ and Win11; 19 on earlier Win10)
+            int darkMode = 1;
+            DwmSetWindowAttribute(hwnd, 20, ref darkMode, sizeof(int));
+            DwmSetWindowAttribute(hwnd, 19, ref darkMode, sizeof(int));
+
+            // DWMWA_WINDOW_CORNER_PREFERENCE (33): DWMWCP_ROUND (2)
+            const int attr = 33;
+            var preference = 2;
             DwmSetWindowAttribute(hwnd, attr, ref preference, sizeof(int));
         }
         catch { /* older Windows — square corners are fine */ }
@@ -142,8 +158,26 @@ public partial class MainWindow : Window
                 _ = ScanAsync(msg);
                 break;
 
+            case "minimize":
+                Dispatcher.Invoke(() => WindowState = WindowState.Minimized);
+                break;
+
+            case "close":
             case "exit":
-                Close();
+                Dispatcher.Invoke(Close);
+                break;
+
+            case "drag":
+                Dispatcher.Invoke(() =>
+                {
+                    try
+                    {
+                        ReleaseCapture();
+                        var hwnd = new WindowInteropHelper(this).Handle;
+                        SendMessage(hwnd, WM_NCLBUTTONDOWN, (IntPtr)HTCAPTION, IntPtr.Zero);
+                    }
+                    catch { }
+                });
                 break;
         }
     }

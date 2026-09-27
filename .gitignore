@@ -21,6 +21,7 @@ portal/data/*.db-shm
 **/bin/Debug/
 **/win-x64/
 agent/publish/
+portal/agent/*.exe
 *.user
 *.suo
 *.userosscache

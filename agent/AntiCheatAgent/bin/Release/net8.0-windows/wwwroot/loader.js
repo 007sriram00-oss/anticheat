@@ -346,10 +346,51 @@ function initParticles() {
   tick();
 }
 
+/* ------------------------------------------------ titlebar & window drag */
+
+function initTitlebar() {
+  const minBtn = $('#btn-minimize');
+  const closeBtn = $('#btn-window-close');
+  const dragArea = $('#titlebar-drag');
+
+  if (minBtn) {
+    minBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      bridge.post({ type: 'minimize' });
+    });
+  }
+
+  if (closeBtn) {
+    closeBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      bridge.post({ type: 'exit' });
+    });
+  }
+
+  if (dragArea) {
+    dragArea.addEventListener('mousedown', (e) => {
+      if (e.button === 0 && !e.target.closest('.tb-btn')) {
+        bridge.post({ type: 'drag' });
+      }
+    });
+  }
+
+  // Allow clicking and dragging anywhere on empty header or stage background
+  window.addEventListener('mousedown', (e) => {
+    if (e.button === 0) {
+      const interactive = e.target.closest('input, button, label, .card, .btn, a, .rs, .check, .step, .tb-btn');
+      if (!interactive) {
+        bridge.post({ type: 'drag' });
+      }
+    }
+  });
+}
+
 /* ------------------------------------------------ boot */
 
 document.addEventListener('DOMContentLoaded', () => {
   initParticles();
+  initTitlebar();
   initConsentScreen();
   $('#btn-exit').addEventListener('click', () => bridge.post({ type: 'exit' }));
   bridge.post({ type: 'ready' }); // host replies with config

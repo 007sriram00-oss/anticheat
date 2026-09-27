@@ -17,6 +17,32 @@ const app = express();
 app.disable('x-powered-by');
 app.use(express.json({ limit: '1mb' }));
 
+/* Optional admin password for public deployments.
+   Set ADMIN_PASSWORD=... in the environment and every route (dashboard + API)
+   requires HTTP Basic auth. The agent API (/api/agent/*) stays open — it is
+   already gated by session PINs, and the agent cannot answer a browser prompt.
+   Leave ADMIN_PASSWORD unset for local use (no login). */
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || '';
+if (ADMIN_PASSWORD) {
+  const { timingSafeEqual } = require('crypto');
+  const matches = (given) => {
+    const a = Buffer.from(String(given), 'utf8');
+    const b = Buffer.from(ADMIN_PASSWORD, 'utf8');
+    return a.length === b.length && timingSafeEqual(a, b);
+  };
+  app.use((req, res, next) => {
+    if (req.path.startsWith('/api/agent/')) return next();
+    const header = req.headers.authorization || '';
+    if (header.startsWith('Basic ')) {
+      const decoded = Buffer.from(header.slice(6), 'base64').toString('utf8');
+      const colon = decoded.indexOf(':');
+      if (colon >= 0 && matches(decoded.slice(colon + 1))) return next();
+    }
+    res.set('WWW-Authenticate', 'Basic realm="Anti-Cheat Portal", charset="UTF-8"');
+    res.status(401).send('Admin password required');
+  });
+}
+
 /* Request logger for the system log.
    Only non-GET requests and failed responses are recorded — routine dashboard
    polling (GET /api/stats every 5s) would otherwise drown out real events. */
@@ -261,16 +287,31 @@ app.delete('/api/chat', (_req, res) => {
 
 /* ============================================================ download ==== */
 
-const AGENT_EXE = path.join(__dirname, '..', 'agent', 'AntiCheatAgent', 'bin', 'Release',
-  'net8.0-windows', 'AntiCheatAgent.exe');
+/* Agent distributable served by the Download page.
+   Resolution order: AGENT_FILE env → zip/exe placed next to the portal
+   (portal/agent/, as uploaded to a server) → the local build tree. The ZIP
+   build is self-contained (.NET runtime included) so players just extract
+   and run AntiCheatAgent.exe. */
+const AGENT_CANDIDATES = [
+  process.env.AGENT_FILE,
+  path.join(__dirname, 'agent', 'TournamentAntiCheat-Agent.zip'),
+  path.join(__dirname, 'agent', 'AntiCheatAgent.exe'),
+  path.join(__dirname, '..', 'agent', 'AntiCheatAgent', 'bin', 'Release',
+    'net8.0-windows', 'AntiCheatAgent.exe'),
+].filter(Boolean);
+const AGENT_FILE = AGENT_CANDIDATES.find((p) => fs.existsSync(p))
+  || AGENT_CANDIDATES[AGENT_CANDIDATES.length - 1];
 
 app.get('/download/agent', (_req, res) => {
-  if (!fs.existsSync(AGENT_EXE)) {
-    store.logEvent('warn', 'download.miss', 'Agent EXE not found on disk (build missing)', {});
-    return res.status(404).send('Agent build not found — build the agent first.');
+  if (!fs.existsSync(AGENT_FILE)) {
+    store.logEvent('warn', 'download.miss', 'Agent build not found on disk (publish missing)', {});
+    return res.status(404).send('Agent build not found — publish the agent first.');
   }
-  store.logEvent('info', 'download.agent', 'Agent EXE downloaded from the Download page', {});
-  res.download(AGENT_EXE, 'TournamentAntiCheat-Setup.exe');
+  store.logEvent('info', 'download.agent', 'Agent package downloaded from the Download page', {});
+  const name = AGENT_FILE.toLowerCase().endsWith('.zip')
+    ? 'TournamentAntiCheat-Agent.zip'
+    : 'TournamentAntiCheat-Setup.exe';
+  res.download(AGENT_FILE, name);
 });
 
 /* ============================================================ static UI ==== */
@@ -285,6 +326,7 @@ app.get('*', (req, res) => {
 
 /* eslint-disable no-unused-vars */
 app.use((err, _req, res, _next) => {
+  if (err.type === 'entity.parse.failed') return res.status(400).json({ error: 'Invalid JSON body' });
   console.error('Unhandled error:', err);
   res.status(500).json({ error: 'Internal server error' });
 });

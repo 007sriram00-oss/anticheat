@@ -1437,15 +1437,17 @@ function paintDownload() {
       <div class="dl-card">
         <div class="dl-ico">${icon('i-download', 22)}</div>
         <h3>Anti-Cheat Agent for Windows</h3>
-        <p class="dl-desc">One-shot scan &amp; report EXE: consent screen → PIN validation → deep scan (processes,
-        EXE/DLL signatures, boot profile, accounts, engines) → automatic upload → closes itself.</p>
+        <p class="dl-desc">One-shot scan &amp; report agent: consent screen → PIN validation → deep scan (processes,
+        EXE/DLL signatures, boot profile, accounts, engines) → automatic upload → closes itself.
+        Ships as a self-contained ZIP — extract it and run <span class="mono">AntiCheatAgent.exe</span>, no .NET
+        install needed.</p>
         <div class="dl-meta">
           <span class="pill zinc">Windows 10/11 · x64</span>
           <span class="pill zinc">v1.0.0</span>
           <span class="pill green"><i></i>Consent-based</span>
           <span class="pill blue">~60s scan</span>
         </div>
-        <a class="btn primary dl-btn" href="/download/agent">${icon('i-download', 16)} Download agent EXE</a>
+        <a class="btn primary dl-btn" href="/download/agent">${icon('i-download', 16)} Download agent (ZIP)</a>
         <p class="dl-note">Unsigned builds may show a SmartScreen warning — choose "More info → Run anyway" only if
         you trust this portal. Runs only with the player's consent.</p>
       </div>
@@ -1457,7 +1459,7 @@ function paintDownload() {
         </div>
         <div class="dl-step" style="animation-delay:70ms">
           <span class="st-num">2</span>
-          <div><b>Share the PIN + EXE</b><p>Give the player the PIN and the agent EXE (this download).</p></div>
+          <div><b>Share the PIN + download</b><p>Give the player the PIN and this download — extract the ZIP, run <span class="mono">AntiCheatAgent.exe</span>.</p></div>
         </div>
         <div class="dl-step" style="animation-delay:140ms">
           <span class="st-num">3</span>

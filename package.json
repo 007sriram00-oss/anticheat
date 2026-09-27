@@ -1,0 +1,12 @@
+﻿{
+  "name": "anticheat-portal-root",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "start": "node portal/server.js",
+    "build": "cd portal && npm install"
+  },
+  "engines": {
+    "node": ">=22.5.0"
+  }
+}

@@ -1,0 +1,13 @@
+﻿services:
+  - type: web
+    name: anticheat-portal
+    runtime: node
+    plan: free
+    rootDir: portal
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: NODE_VERSION
+        value: 22
+      - key: HOST
+        value: 0.0.0.0

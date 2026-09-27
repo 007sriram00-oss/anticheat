@@ -159,16 +159,39 @@ anti cheat exe/
 
 ---
 
-## 📦 Distributing the EXE to players
+## 📦 Distributing the agent to players
 
-1. **WebView2 Runtime** — required (preinstalled on Windows 11 and most Win10 machines;
-   otherwise install from Microsoft: "WebView2 Evergreen Runtime").
-2. **Unsigned EXE warnings** — Windows SmartScreen / Defender will warn on an unsigned
+The Download page serves **`TournamentAntiCheat-Agent.zip`** — a self-contained
+build (no .NET install needed). Players: extract the ZIP → run
+`AntiCheatAgent.exe`. Only **WebView2 Runtime** is required (preinstalled with
+Edge on Windows 11 and most Win10 machines; otherwise install "WebView2
+Evergreen Runtime" from Microsoft).
+
+1. **Unsigned EXE warnings** — Windows SmartScreen / Defender will warn on an unsigned
    binary that opens a network connection. Options:
    - Sign the EXE with a code-signing certificate (recommended for real tournaments), or
    - Have players click *More info → Run anyway*, or
    - Distribute through your tournament platform with instructions.
-3. The portal binds to `127.0.0.1` only — it is not exposed to the network.
+2. **Local use** — by default the portal binds to `127.0.0.1` only: it is not
+   exposed to the network.
+
+## 🌍 Public deployment (24/7, free)
+
+See **[DEPLOY.md](DEPLOY.md)** — step-by-step guide for hosting the portal on
+the **Oracle Cloud Always Free** tier (real server, SQLite data persists,
+free for life).
+
+Summary of the environment switches:
+
+| Variable | Local (default) | Public server |
+|---|---|---|
+| `HOST` | `127.0.0.1` | `0.0.0.0` |
+| `PORT` | `3000` | `3000` |
+| `ADMIN_PASSWORD` | unset → no login | **required** → HTTP Basic auth on dashboard + API |
+| `AGENT_FILE` | auto-detected | path to the agent ZIP, if stored elsewhere |
+
+The agent API (`/api/agent/*`) stays open in both modes — it is gated by
+session PINs.
 
 ## 🔒 Design commitments
 
@@ -180,8 +203,18 @@ anti cheat exe/
 ## 🧪 Testing
 
 ```powershell
-# create a session, then run unattended with a short window:
+# create a pin, then run unattended with a short window:
 AntiCheatAgent.exe --pin XXXX-XXXX --portal http://127.0.0.1:3000 --auto --min-seconds 10
+```
+
+## 📦 Publishing the agent ZIP
+
+The Download page serves a self-contained build (players need no .NET):
+
+```powershell
+dotnet publish agent\AntiCheatAgent\AntiCheatAgent.csproj -c Release -r win-x64 `
+  --self-contained true -p:PublishSingleFile=true -o agent\publish
+# zip the publish folder (skip *.pdb / *.xml) → portal\agent\TournamentAntiCheat-Agent.zip
 ```
 
 ## 🗺️ Roadmap ideas

@@ -61,6 +61,14 @@ app.use((req, res, next) => {
   next();
 });
 
+app.use('/api/agent', (req, res, next) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  if (req.method === 'OPTIONS') return res.sendStatus(200);
+  next();
+});
+
 /* =========================================================== agent API ==== */
 
 // Agent checks a session PIN before scanning.

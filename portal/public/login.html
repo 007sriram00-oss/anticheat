@@ -390,7 +390,7 @@
   const params = new URLSearchParams(location.search);
   const redirectTo = (() => {
     const to = params.get('redirectTo');
-    return to && to.startsWith('/') && !to.startsWith('//') ? to : '/';
+    return to && to.startsWith('/') && !to.startsWith('//') && !to.startsWith('/login') && !to.startsWith('/auth') ? to : '/';
   })();
 
   const ERRORS = {
@@ -429,9 +429,16 @@
   if (err) banner(ERRORS[err] || (err.length <= 90 ? err : 'Sign-in failed — please try again.'));
 
   // already signed in? go straight to the dashboard
-  fetch('/api/me')
+  const savedToken = localStorage.getItem('anticheat_token');
+  const checkHeaders = savedToken ? { 'Authorization': 'Bearer ' + savedToken } : {};
+  fetch('/api/me', { headers: checkHeaders, credentials: 'include' })
     .then((r) => (r.ok ? r.json() : null))
-    .then((d) => { if (d && d.authenticated && d.user) location.replace(redirectTo); })
+    .then((d) => {
+      if (d && d.authenticated && d.user) {
+        const dest = (!redirectTo || redirectTo.startsWith('/login')) ? '/' : redirectTo;
+        location.replace(dest);
+      }
+    })
     .catch(() => {});
 
   // Prevent browser from auto-filling old saved 'admin' credentials
@@ -491,8 +498,12 @@
       });
       const data = await res.json().catch(() => ({}));
       if (res.ok) {
+        if (data.token) {
+          localStorage.setItem('anticheat_token', data.token);
+        }
         $('submit-label').textContent = 'Welcome back ✓';
-        setTimeout(() => location.replace(redirectTo), 350);
+        const dest = (!redirectTo || redirectTo.startsWith('/login')) ? '/' : redirectTo;
+        setTimeout(() => location.replace(dest), 350);
         return;
       }
       banner(data.error || 'Sign-in failed.');

@@ -46,11 +46,20 @@ function esc(v) {
   ));
 }
 
-async function api(path, opts) {
+async function api(path, opts = {}) {
+  const token = localStorage.getItem('anticheat_token');
+  const headers = Object.assign({}, opts.headers);
+  if (token && !headers['Authorization']) {
+    headers['Authorization'] = 'Bearer ' + token;
+  }
+  opts.headers = headers;
+  opts.credentials = 'include';
+
   const res = await fetch(path, opts);
   if (res.status === 401) {
-    // session expired — bounce to the login page and come back afterwards
-    location.href = '/login.html?redirectTo=' + encodeURIComponent(location.pathname + location.search);
+    localStorage.removeItem('anticheat_token');
+    const to = location.pathname.startsWith('/login') ? '/' : location.pathname + location.search;
+    location.href = '/login.html?redirectTo=' + encodeURIComponent(to);
     throw new Error('Not logged in');
   }
   if (!res.ok) {
@@ -2017,20 +2026,23 @@ let currentUser = null;
 
 async function checkAuth() {
   try {
-    const res = await fetch('/api/me');
+    const token = localStorage.getItem('anticheat_token');
+    const headers = token ? { 'Authorization': 'Bearer ' + token } : {};
+    const res = await fetch('/api/me', { headers, credentials: 'include' });
     const data = await res.json();
     if (!res.ok || !data.authenticated || !data.user) {
       currentUser = null;
       updateUserUi();
-      // the dashboard is gated — send a signed-out visitor to the login page
-      location.replace('/login.html?redirectTo=' + encodeURIComponent(location.pathname + location.search));
+      localStorage.removeItem('anticheat_token');
+      const to = location.pathname.startsWith('/login') ? '/' : location.pathname + location.search;
+      location.replace('/login.html?redirectTo=' + encodeURIComponent(to));
       return;
     }
     currentUser = data.user;
     updateUserUi();
-  } catch {
-    currentUser = null;
-    updateUserUi();
+  } catch (err) {
+    // transient network error — keep current state, do not boot user out
+    console.warn('checkAuth transient warning:', err);
   }
 }
 
@@ -2478,9 +2490,9 @@ function init() {
     userAction.addEventListener('click', async () => {
       if (currentUser) {
         try {
-          await fetch('/auth/logout', { method: 'POST' });
+          localStorage.removeItem('anticheat_token');
+          await fetch('/auth/logout', { method: 'POST', credentials: 'include' });
         } catch { /* cookie still cleared server-side best effort */ }
-        // every page is gated — land back on the login screen
         location.replace('/login.html');
       } else {
         openLoginModal();
@@ -2496,13 +2508,17 @@ function init() {
     }
   });
 
-  // Check URL params for login notifications
+  // Check URL params for login notifications and token
+  const urlParams = new URLSearchParams(location.search);
+  const urlToken = urlParams.get('token');
+  if (urlToken) {
+    localStorage.setItem('anticheat_token', urlToken);
+  }
   if (location.search.includes('auth=success')) {
     toast('Signed in successfully! Welcome to Anti-Cheat Portal.', 'success');
     history.replaceState(null, '', location.pathname);
   } else if (location.search.includes('auth_error=')) {
-    const params = new URLSearchParams(location.search);
-    toast(params.get('auth_error') || 'Authentication failed', 'error');
+    toast(urlParams.get('auth_error') || 'Authentication failed', 'error');
     history.replaceState(null, '', location.pathname);
   }
 

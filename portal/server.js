@@ -59,14 +59,45 @@ function pruneOauthStates() {
 }
 setInterval(pruneOauthStates, 10 * 60 * 1000).unref();
 
-/* Sessions are DB-backed (users + user_sessions tables, 30-day expiry).
-   parseCookies / getBaseUrl live with the original OAuth block further down. */
-function sessionUser(req) {
-  return store.getUserBySessionToken(parseCookies(req).anticheat_session);
+function parseCookies(req) {
+  const list = {};
+  const rc = req.headers.cookie;
+  if (rc) {
+    rc.split(';').forEach((cookie) => {
+      const parts = cookie.split('=');
+      const key = parts.shift().trim();
+      const val = parts.join('=');
+      try {
+        list[key] = decodeURIComponent(val);
+      } catch {
+        list[key] = val;
+      }
+    });
+  }
+  return list;
 }
 
-function setSessionCookie(res, token) {
-  res.setHeader('Set-Cookie', `anticheat_session=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${30 * 24 * 3600}`);
+function extractSessionToken(req) {
+  const cookies = parseCookies(req);
+  if (cookies.anticheat_session) return cookies.anticheat_session;
+  if (req.headers.authorization) {
+    const m = req.headers.authorization.match(/^Bearer\s+(.+)$/i);
+    if (m) return m[1].trim();
+  }
+  if (req.query && req.query.token) return String(req.query.token).trim();
+  return null;
+}
+
+/* Sessions are DB-backed (users + user_sessions tables, 1-year expiry). */
+function sessionUser(req) {
+  const token = extractSessionToken(req);
+  return store.getUserBySessionToken(token);
+}
+
+function setSessionCookie(res, token, req) {
+  const isHttps = req ? (req.headers['x-forwarded-proto'] === 'https' || req.socket.encrypted || (req.headers.host && req.headers.host.includes('render.com'))) : false;
+  const secureFlag = isHttps ? '; Secure' : '';
+  res.setHeader('Set-Cookie', `anticheat_session=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${365 * 24 * 3600}${secureFlag}`);
 }
 
 function pwOk(given) {
@@ -107,14 +138,15 @@ app.use((req, res, next) => {
    the auth endpoints, the login page and static assets (no data in them).
    Unauthenticated API calls get 401; page loads bounce to the login page
    with a redirectTo so the user lands where they were headed. */
-const OPEN_PREFIXES = ['/api/agent', '/api/login', '/auth/', '/login.html', '/css/', '/js/', '/icons/', '/favicon'];
+const OPEN_PREFIXES = ['/api/agent', '/api/login', '/api/login-config', '/api/me', '/auth/', '/login.html', '/css/', '/js/', '/icons/', '/favicon'];
 app.use((req, res, next) => {
   const p = req.path;
   if (OPEN_PREFIXES.some((x) => p === x || p.startsWith(x))) return next();
   const user = sessionUser(req);
   if (user) { req.user = user; return next(); }
   if (p.startsWith('/api/')) return res.status(401).json({ error: 'Not logged in' });
-  return res.redirect('/login.html?redirectTo=' + encodeURIComponent(req.originalUrl));
+  const to = (req.originalUrl.startsWith('/login') || req.originalUrl.startsWith('/auth')) ? '/' : req.originalUrl;
+  return res.redirect('/login.html?redirectTo=' + encodeURIComponent(to));
 });
 
 app.use('/api/agent', (req, res, next) => {
@@ -386,19 +418,23 @@ function getBaseUrl(req) {
 
 // Only same-site relative paths may be used as a post-login destination.
 function safeTo(to) {
-  return typeof to === 'string' && to.startsWith('/') && !to.startsWith('//') ? to : '/';
+  if (typeof to !== 'string' || !to.startsWith('/') || to.startsWith('//') || to.startsWith('/login') || to.startsWith('/auth')) {
+    return '/';
+  }
+  return to;
 }
 
-function successDest(rec) {
-  const to = (rec && rec.to) || '/';
-  return to + (to.includes('?') ? '&' : '?') + 'auth=success';
+function successDest(rec, token) {
+  let to = (rec && rec.to) || '/';
+  if (to.startsWith('/login') || to.startsWith('/auth')) to = '/';
+  const sep = to.includes('?') ? '&' : '?';
+  const tokenPart = token ? `token=${encodeURIComponent(token)}&` : '';
+  return `${to}${sep}${tokenPart}auth=success`;
 }
 
 // User info endpoint
 app.get('/api/me', (req, res) => {
-  const cookies = parseCookies(req);
-  const token = cookies.anticheat_session;
-  const user = store.getUserBySessionToken(token);
+  const user = sessionUser(req);
   if (!user) return res.json({ authenticated: false, user: null });
   return res.json({ authenticated: true, user });
 });
@@ -484,14 +520,14 @@ app.get('/auth/discord/callback', async (req, res) => {
     });
 
     const sessionToken = store.createSessionToken(user.id);
-    setSessionCookie(res, sessionToken);
+    setSessionCookie(res, sessionToken, req);
     discordBot.logLogin({
       provider: 'discord',
       user: { name: user.name, email: user.email, avatarUrl: user.avatar_url },
       ip: req.ip,
       userAgent: req.headers['user-agent'],
     });
-    res.redirect(successDest(rec));
+    res.redirect(successDest(rec, sessionToken));
   } catch (err) {
     console.error('Discord OAuth error:', err);
     res.redirect('/login.html?error=' + encodeURIComponent(err.message));
@@ -558,14 +594,14 @@ app.get('/auth/google/callback', async (req, res) => {
     });
 
     const sessionToken = store.createSessionToken(user.id);
-    setSessionCookie(res, sessionToken);
+    setSessionCookie(res, sessionToken, req);
     discordBot.logLogin({
       provider: 'google',
       user: { name: user.name, email: user.email, avatarUrl: user.avatar_url },
       ip: req.ip,
       userAgent: req.headers['user-agent'],
     });
-    res.redirect(successDest(rec));
+    res.redirect(successDest(rec, sessionToken));
   } catch (err) {
     console.error('Google OAuth error:', err);
     res.redirect('/login.html?error=' + encodeURIComponent(err.message));
@@ -602,14 +638,15 @@ app.post('/api/login', (req, res) => {
   const user = {
     id: row.id, provider: 'local', name: row.name, email: row.email, avatarUrl: row.avatar_url || '',
   };
-  setSessionCookie(res, store.createSessionToken(user.id));
+  const sessionToken = store.createSessionToken(user.id);
+  setSessionCookie(res, sessionToken, req);
   discordBot.logLogin({
     provider: 'local',
     user: { name: user.name, email: user.email, avatarUrl: '' },
     ip: req.ip,
     userAgent: req.headers['user-agent'],
   });
-  res.json({ authenticated: true, user });
+  res.json({ authenticated: true, user, token: sessionToken });
 });
 
 // Login config endpoint — do not expose dev hint

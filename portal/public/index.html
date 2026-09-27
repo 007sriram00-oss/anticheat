@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Anti-Cheat Portal</title>
+<link rel="stylesheet" href="/css/glass.css" />
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🛡️</text></svg>" />
+</head>
+<body>
+
+<!-- ==================== icon sprite (feather-style, stroke) ==================== -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-grid" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/></symbol>
+  <symbol id="i-pin" viewBox="0 0 24 24"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></symbol>
+  <symbol id="i-file" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M16 13H8M16 17H8M10 9H8"/></symbol>
+  <symbol id="i-terminal" viewBox="0 0 24 24"><path d="M4 17l6-6-6-6M12 19h8"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></symbol>
+  <symbol id="i-bell" viewBox="0 0 24 24"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 0 1-3.46 0"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="i-chev-r" viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></symbol>
+  <symbol id="i-chev-l" viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></symbol>
+  <symbol id="i-chev-d" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></symbol>
+  <symbol id="i-copy" viewBox="0 0 24 24"><rect x="8" y="8" width="13" height="13" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></symbol>
+  <symbol id="i-download" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></symbol>
+  <symbol id="i-trash" viewBox="0 0 24 24"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="M22 4L12 14.01l-3-3"/></symbol>
+  <symbol id="i-warn" viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><path d="M12 9v4M12 17h.01"/></symbol>
+  <symbol id="i-xoct" viewBox="0 0 24 24"><path d="M7.86 2h8.28L22 7.86v8.28L16.14 22H7.86L2 16.14V7.86L7.86 2z"/><path d="M15 9l-6 6M9 9l6 6"/></symbol>
+  <symbol id="i-activity" viewBox="0 0 24 24"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></symbol>
+  <symbol id="i-cpu" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/><path d="M15 2v2M15 20v2M2 15h2M2 9h2M20 15h2M20 9h2M9 2v2M9 20v2"/></symbol>
+  <symbol id="i-monitor" viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></symbol>
+  <symbol id="i-drive" viewBox="0 0 24 24"><path d="M22 12H2M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11zM6 16h.01M10 16h.01"/></symbol>
+  <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></symbol>
+  <symbol id="i-game" viewBox="0 0 24 24"><path d="M6 12h4M8 10v4M15 13h.01M18 11h.01M17.32 5H6.68a4 4 0 0 0-3.98 3.59c-.01.11-.02.22-.02.33V18a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8.92c0-.11-.01-.22-.02-.33A4 4 0 0 0 17.32 5z"/></symbol>
+  <symbol id="i-wifi" viewBox="0 0 24 24"><path d="M5 12.55a11 11 0 0 1 14.08 0M1.42 9a16 16 0 0 1 21.16 0M8.53 16.11a6 6 0 0 1 6.95 0M12 20h.01"/></symbol>
+  <symbol id="i-server" viewBox="0 0 24 24"><rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/><path d="M6 6h.01M6 18h.01"/></symbol>
+  <symbol id="i-users" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></symbol>
+  <symbol id="i-zap" viewBox="0 0 24 24"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></symbol>
+  <symbol id="i-db" viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></symbol>
+  <symbol id="i-flag" viewBox="0 0 24 24"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><path d="M4 22v-7"/></symbol>
+  <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></symbol>
+  <symbol id="i-more" viewBox="0 0 24 24"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></symbol>
+  <symbol id="i-ext" viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6M15 3h6v6M10 14L21 3"/></symbol>
+  <symbol id="i-cal" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></symbol>
+  <symbol id="i-pause" viewBox="0 0 24 24"><path d="M6 4h4v16H6zM14 4h4v16h-4z"/></symbol>
+  <symbol id="i-play" viewBox="0 0 24 24"><path d="M5 3l14 9-14 9z"/></symbol>
+  <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></symbol>
+  <symbol id="i-lock" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></symbol>
+  <symbol id="i-menu" viewBox="0 0 24 24"><path d="M3 12h18M3 6h18M3 18h18"/></symbol>
+  <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></symbol>
+  <symbol id="i-fingerprint" viewBox="0 0 24 24"><path d="M12 10a2 2 0 0 0-2 2c0 1.02-.1 2.51-.26 4M14 13.12c0 2.38 0 6.38-1 8.88M17.29 21.02c.12-.6.43-2.3.5-3.02M2 12a10 10 0 0 1 18-6M2 16h.01M21.8 16c.2-2 .131-5.354 0-6M5 19.5C5.5 18 6 15 6 12a6 6 0 0 1 .34-2M8.65 22c.21-.66.45-1.32.57-2M9 6.8a6 6 0 0 1 9 5.2v2"/></symbol>
+  <symbol id="i-spark" viewBox="0 0 24 24"><path d="M12 2l1.9 5.8L20 9.7l-5.2 3.4L16.5 19 12 15.7 7.5 19l1.7-5.9L4 9.7l6.1-1.9L12 2z"/></symbol>
+  <symbol id="i-tag" viewBox="0 0 24 24"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><circle cx="7" cy="7" r="1.5"/></symbol>
+  <symbol id="i-eye" viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></symbol>
+  <symbol id="i-book" viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></symbol>
+  <symbol id="i-life" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="4"/><path d="M4.93 4.93l4.24 4.24M14.83 14.83l4.24 4.24M14.83 9.17l4.24-4.24M9.17 14.83l-4.24 4.24"/></symbol>
+  <symbol id="i-trophy" viewBox="0 0 24 24"><path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0V4z"/><path d="M17 6h3a1 1 0 0 1 1 1c0 2.2-1.8 4-4 4M7 6H4a1 1 0 0 0-1 1c0 2.2 1.8 4 4 4"/></symbol>
+  <symbol id="i-upload" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/></symbol>
+  <symbol id="i-message" viewBox="0 0 24 24"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></symbol>
+  <symbol id="i-hash" viewBox="0 0 24 24"><path d="M4 9h16M4 15h16M10 3L8 21M16 3l-2 18"/></symbol>
+</svg>
+
+<div class="app">
+
+  <!-- ==================== sidebar ==================== -->
+  <aside class="sidebar" id="sidebar">
+    <div class="brand">
+      <div class="brand-mark"><svg class="ico" width="20" height="20"><use href="#i-shield"/></svg></div>
+      <div class="brand-text">
+        <strong>Anti-Cheat</strong>
+        <span>portal.local</span>
+      </div>
+    </div>
+
+    <nav class="nav">
+      <button class="nav-item active" data-page="overview">
+        <svg class="ico" width="17" height="17"><use href="#i-grid"/></svg><span>Dashboard</span>
+      </button>
+
+      <div class="nav-group">Services</div>
+
+      <div class="nav-parent open" data-parent="scanner">
+        <button class="nav-item nav-exp" data-toggle="scanner">
+          <svg class="ico" width="17" height="17"><use href="#i-zap"/></svg><span>Scanner</span>
+          <svg class="ico chev" width="14" height="14"><use href="#i-chev-d"/></svg>
+        </button>
+        <div class="nav-children" data-children="scanner">
+          <button class="nav-item sub" data-page="sessions">
+            <span class="sub-dot"></span><span>Pins</span>
+            <em class="nav-badge" id="badge-sessions" hidden></em>
+          </button>
+          <button class="nav-item sub" data-page="detections">
+            <span class="sub-dot"></span><span>Detections</span>
+          </button>
+          <button class="nav-item sub" data-page="reports">
+            <span class="sub-dot"></span><span>Reports</span>
+            <em class="nav-badge danger" id="badge-reports" hidden></em>
+          </button>
+        </div>
+      </div>
+
+      <div class="nav-parent" data-parent="database">
+        <button class="nav-item nav-exp" data-toggle="database">
+          <svg class="ico" width="17" height="17"><use href="#i-db"/></svg><span>Database</span>
+          <svg class="ico chev" width="14" height="14"><use href="#i-chev-d"/></svg>
+        </button>
+        <div class="nav-children" data-children="database">
+          <button class="nav-item sub" data-page="statistics"><span class="sub-dot"></span><span>Statistics</span></button>
+          <button class="nav-item sub" data-page="queryuser"><span class="sub-dot"></span><span>Query User</span></button>
+        </div>
+      </div>
+
+      <div class="nav-parent" data-parent="antic">
+        <button class="nav-item nav-exp" data-toggle="antic">
+          <svg class="ico" width="17" height="17"><use href="#i-shield"/></svg><span>Anti-Cheat</span>
+          <svg class="ico chev" width="14" height="14"><use href="#i-chev-d"/></svg>
+        </button>
+        <div class="nav-children" data-children="antic">
+          <button class="nav-item sub" data-page="antic"><span class="sub-dot"></span><span>👀</span></button>
+        </div>
+      </div>
+
+      <div class="nav-group">Support</div>
+
+      <button class="nav-item" data-page="tickets">
+        <svg class="ico" width="17" height="17"><use href="#i-life"/></svg><span>Tickets</span>
+        <em class="nav-badge" id="badge-tickets" hidden></em>
+      </button>
+      <button class="nav-item" data-page="chat">
+        <svg class="ico" width="17" height="17"><use href="#i-message"/></svg><span>Chat</span>
+      </button>
+
+      <div class="nav-group">Others</div>
+
+      <div class="nav-parent" data-parent="resources">
+        <button class="nav-item nav-exp" data-toggle="resources">
+          <svg class="ico" width="17" height="17"><use href="#i-book"/></svg><span>Resources</span>
+          <svg class="ico chev" width="14" height="14"><use href="#i-chev-d"/></svg>
+        </button>
+        <div class="nav-children" data-children="resources">
+          <button class="nav-item sub" data-page="leaderboard"><span class="sub-dot"></span><span>Leaderboard</span></button>
+          <button class="nav-item sub" data-page="doc" data-key="docs"><span class="sub-dot"></span><span>Documentation</span></button>
+          <button class="nav-item sub" data-page="doc" data-key="pricing"><span class="sub-dot"></span><span>Pricing</span></button>
+          <button class="nav-item sub" data-page="download"><span class="sub-dot"></span><span>Download</span></button>
+          <button class="nav-item sub" data-page="doc" data-key="tos"><span class="sub-dot"></span><span>Terms of Service</span></button>
+          <button class="nav-item sub" data-page="doc" data-key="privacy"><span class="sub-dot"></span><span>Privacy Policy</span></button>
+          <button class="nav-item sub" data-page="doc" data-key="legal"><span class="sub-dot"></span><span>Legal</span></button>
+          <button class="nav-item sub" data-page="doc" data-key="changelog"><span class="sub-dot"></span><span>Changelogs</span></button>
+        </div>
+      </div>
+    </nav>
+
+    <div class="sidebar-foot">
+      <div class="foot-icons">
+        <span class="fi green" title="Realtime connection"><svg class="ico" width="15" height="15"><use href="#i-wifi"/></svg></span>
+        <span class="fi" title="System log" data-page="log" style="cursor:pointer"><svg class="ico" width="15" height="15"><use href="#i-clock"/></svg></span>
+        <span class="fi" title="Dark theme"><svg class="ico" width="15" height="15"><use href="#i-spark"/></svg></span>
+      </div>
+      <div class="user-chip">
+        <div class="avatar">A</div>
+        <div class="user-meta">
+          <strong>Administrator</strong>
+          <span>localhost:3000</span>
+        </div>
+        <svg class="ico" width="14" height="14"><use href="#i-chev-d"/></svg>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ==================== main ==================== -->
+  <div class="main">
+    <header class="topbar">
+      <div class="topbar-left">
+        <button class="icon-btn" id="btn-sidebar" title="Toggle sidebar"><svg class="ico" width="17" height="17"><use href="#i-menu"/></svg></button>
+        <nav class="crumbs" id="crumbs"><span>Dashboard</span></nav>
+      </div>
+      <div class="topbar-right">
+        <label class="searchbox">
+          <svg class="ico" width="14" height="14"><use href="#i-search"/></svg>
+          <input type="text" id="global-search" placeholder="Search..." />
+          <kbd>Ctrl+K</kbd>
+        </label>
+        <button class="icon-btn has-dot" id="btn-bell" title="System alerts">
+          <svg class="ico" width="17" height="17"><use href="#i-bell"/></svg>
+          <em class="dot-badge" id="bell-badge" hidden></em>
+        </button>
+        <button class="btn ghost sm" id="btn-feedback">Feedback</button>
+      </div>
+    </header>
+
+    <div class="content" id="content">
+      <section class="view" id="view-overview"></section>
+      <section class="view" id="view-sessions"></section>
+      <section class="view" id="view-detections"></section>
+      <section class="view" id="view-reports"></section>
+      <section class="view" id="view-report"></section>
+      <section class="view" id="view-log"></section>
+      <section class="view" id="view-statistics"></section>
+      <section class="view" id="view-queryuser"></section>
+      <section class="view" id="view-antic"></section>
+      <section class="view" id="view-tickets"></section>
+      <section class="view" id="view-chat"></section>
+      <section class="view" id="view-leaderboard"></section>
+      <section class="view" id="view-download"></section>
+      <section class="view" id="view-doc"></section>
+      <section class="view" id="view-about"></section>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== create pin modal (Ocean clone) ==================== -->
+<div class="modal-backdrop" id="modal-session" hidden>
+  <div class="modal modal-pin">
+    <form id="form-session">
+      <div class="np-head">
+        <span class="np-ico"><svg class="ico" width="17" height="17"><use href="#i-pin"/></svg></span>
+        <div class="np-titles">
+          <div class="np-kicker">New Scan</div>
+          <h2>Create New Pin</h2>
+        </div>
+        <button type="button" class="icon-btn" data-close>✕</button>
+      </div>
+      <p class="np-sub">Pick a game, configure access, and generate a pin ready to scan.</p>
+
+      <div class="np-selected" id="np-selected">
+        <span class="np-sel-chip" id="np-sel-chip"></span>
+        <span class="pill green" id="np-sel-priv"><i></i>Private</span>
+      </div>
+
+      <div class="np-label">Select a game <span id="np-game-count">available</span></div>
+      <div class="game-grid" id="game-grid"></div>
+      <input type="hidden" id="s-game" />
+
+      <div class="field np-name">
+        <label>Pin name <span class="opt">(optional)</span></label>
+        <div class="input-ic">
+          <svg class="ico" width="14" height="14"><use href="#i-tag"/></svg>
+          <input type="text" id="s-name" class="input" placeholder="Name to identify the pin" maxlength="80" />
+        </div>
+      </div>
+
+      <div class="np-label">Options</div>
+
+      <div class="opt-card" data-action="toggle-private">
+        <span class="opt-ico blue"><svg class="ico" width="15" height="15"><use href="#i-lock"/></svg></span>
+        <div class="opt-txt">
+          <b>Private Pin</b>
+          <span>Only you and people you share with can open this pin.</span>
+        </div>
+        <label class="switch"><input type="checkbox" id="s-private" checked /><i></i></label>
+      </div>
+
+      <div class="engines">
+        <div class="opt-card engine locked" title="Windows only">
+          <span class="opt-ico dim"><svg class="ico" width="14" height="14"><use href="#i-cpu"/></svg></span>
+          <div class="opt-txt"><b>RUIN</b><span>Windows only</span></div>
+          <span class="lock-tag"><svg class="ico" width="12" height="12"><use href="#i-lock"/></svg> Locked</span>
+        </div>
+        <div class="opt-card engine locked" title="Windows only">
+          <span class="opt-ico dim"><svg class="ico" width="14" height="14"><use href="#i-eye"/></svg></span>
+          <div class="opt-txt"><b>ÆGIR</b><span>Windows only</span></div>
+          <span class="lock-tag"><svg class="ico" width="12" height="12"><use href="#i-lock"/></svg> Locked</span>
+        </div>
+        <div class="opt-card engine locked" title="Runs on Windows and Linux">
+          <span class="opt-ico dim"><svg class="ico" width="14" height="14"><use href="#i-terminal"/></svg></span>
+          <div class="opt-txt"><b>RÁN</b><span>Windows &amp; Linux</span></div>
+          <span class="lock-tag"><svg class="ico" width="12" height="12"><use href="#i-lock"/></svg> Locked</span>
+        </div>
+      </div>
+
+      <div class="field np-validity">
+        <label>Pin validity</label>
+        <select id="s-expiry">
+          <option value="0">No expiry</option>
+          <option value="2">2 hours</option>
+          <option value="6" selected>6 hours</option>
+          <option value="12">12 hours</option>
+          <option value="24">24 hours</option>
+          <option value="72">3 days</option>
+        </select>
+      </div>
+
+      <p class="hint">Players receive the generated PIN with the agent EXE. The agent validates the PIN, shows a consent screen, runs the scan and uploads its report here.</p>
+
+      <div class="modal-foot">
+        <button type="button" class="btn ghost" data-close>Cancel</button>
+        <button type="submit" class="btn primary"><svg class="ico" width="15" height="15"><use href="#i-plus"/></svg> Create Pin</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ==================== new ticket modal ==================== -->
+<div class="modal-backdrop" id="modal-ticket" hidden>
+  <div class="modal">
+    <div class="modal-head">
+      <h2>New Ticket</h2>
+      <button class="icon-btn" data-close>✕</button>
+    </div>
+    <form id="form-ticket" class="form">
+      <div class="field">
+        <label>Title</label>
+        <input type="text" id="t-title" placeholder="Brief summary of the issue" required maxlength="160" />
+      </div>
+      <div class="field">
+        <label>Details</label>
+        <textarea id="t-body" rows="4" maxlength="4000" placeholder="Steps to reproduce, affected PIN, expected behaviour…"></textarea>
+      </div>
+      <div class="field">
+        <label>Priority</label>
+        <select id="t-priority">
+          <option value="low">Low</option>
+          <option value="normal" selected>Normal</option>
+          <option value="high">High</option>
+          <option value="urgent">Urgent</option>
+        </select>
+      </div>
+      <div class="modal-foot">
+        <button type="button" class="btn ghost" data-close>Cancel</button>
+        <button type="submit" class="btn primary">Create ticket</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ==================== confirm modal ==================== -->
+<div class="modal-backdrop" id="modal-confirm" hidden>
+  <div class="modal modal-sm">
+    <div class="modal-head"><h2 id="cf-title">Confirm</h2><button class="icon-btn" data-close>✕</button></div>
+    <p id="cf-msg" class="cf-msg"></p>
+    <div class="modal-foot">
+      <button class="btn ghost" data-close>Cancel</button>
+      <button class="btn danger" id="cf-ok">Delete</button>
+    </div>
+  </div>
+</div>
+
+<div class="toasts" id="toasts"></div>
+
+<script src="/js/dashboard.js"></script>
+</body>
+</html>

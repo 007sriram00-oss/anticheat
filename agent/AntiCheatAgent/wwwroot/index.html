@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Tournament Anti-Cheat</title>
+<link rel="stylesheet" href="loader.css" />
+</head>
+<body>
+
+<!-- animated background -->
+<div class="bg">
+  <div class="orb orb-a"></div>
+  <div class="orb orb-b"></div>
+  <div class="orb orb-c"></div>
+  <div class="grid-lines"></div>
+  <canvas id="particles"></canvas>
+</div>
+
+<main class="stage">
+
+  <!-- ================= PIN SCREEN ================= -->
+  <section class="screen active" id="screen-pin">
+    <div class="logo">
+      <div class="logo-ring"></div>
+      <svg viewBox="0 0 24 24" width="44" height="44">
+        <path fill="currentColor" d="M12 2l8 3v6c0 5-3.4 9.4-8 11-4.6-1.6-8-6-8-11V5l8-3zm-1 13.4l5.3-5.3-1.4-1.4L11 12.6l-1.9-1.9-1.4 1.4L11 15.4z"/>
+      </svg>
+    </div>
+
+    <h1>Tournament <span>Anti-Cheat</span></h1>
+    <p class="sub">Enter the session PIN you received from the tournament admin</p>
+
+    <div class="card">
+      <label class="fl" for="pin">Session PIN</label>
+      <input id="pin" class="pin-input" type="text" maxlength="9" placeholder="XXXX-XXXX"
+             autocomplete="off" spellcheck="false" />
+
+      <label class="fl" for="player">Player name <em>(optional)</em></label>
+      <input id="player" class="text-input" type="text" maxlength="40" placeholder="In-game name"
+             autocomplete="off" />
+
+      <div class="portal-row">
+        <span class="dot" id="portal-dot"></span>
+        <span id="portal-url">portal</span>
+        <span class="status" id="portal-status">checking…</span>
+      </div>
+
+      <div class="error" id="pin-error" hidden></div>
+
+      <button class="btn primary" id="btn-continue">
+        <span class="btn-label">Continue</span>
+        <span class="spinner" hidden></span>
+      </button>
+    </div>
+
+    <p class="fine">Consent required · this agent scans for cheats and reports results to the tournament organizer</p>
+  </section>
+
+  <!-- ================= CONSENT SCREEN ================= -->
+  <section class="screen" id="screen-consent">
+    <div class="session-banner">
+      <div class="sb-left">
+        <span class="sb-label">Session</span>
+        <strong id="c-session">—</strong>
+      </div>
+      <span class="sb-badge" id="c-game">—</span>
+    </div>
+
+    <h2>Before we scan</h2>
+    <p class="sub">You are running a consent-based anti-cheat check for this tournament.</p>
+
+    <div class="card">
+      <ul class="consent-list">
+        <li><i class="ok">✓</i><div><b>What is scanned</b><span>Cheat processes, DLL/EXE files in Downloads, temp
+          folders, Program Files and AppData (with signature verification), antivirus status, debugger checks and
+          loaded game modules — plus device name, OS and agent version.</span></div></li>
+        <li><i class="ok">✓</i><div><b>Device profile shown in the report</b><span>Boot/BIOS and hardware details
+          (GPU), installed user accounts, recording/overlay software, VPN adapters, recycle-bin age, Windows install
+          date, recent file activity, PowerShell command patterns, approximate country (via public IP) and the focused
+          window title.</span></div></li>
+        <li><i class="no">✕</i><div><b>What is NOT collected</b><span>No keystrokes, no screenshots, no personal
+          files, no browsing history, no USB or file-deletion logs. Only scan results are uploaded.</span></div></li>
+        <li><i class="ok">✓</i><div><b>How it runs</b><span>One ~60 second scan session tied to your tournament PIN.
+          The app closes automatically after the report is uploaded.</span></div></li>
+      </ul>
+
+      <label class="check">
+        <input type="checkbox" id="agree" />
+        <span class="box"></span>
+        <span>I understand and agree to run this anti-cheat scan on this device.</span>
+      </label>
+
+      <div class="btn-row">
+        <button class="btn ghost" id="btn-back">← Back</button>
+        <button class="btn primary" id="btn-start" disabled>Start scan</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= PROGRESS SCREEN ================= -->
+  <section class="screen" id="screen-progress">
+    <div class="loader-wrap">
+      <svg class="ring" viewBox="0 0 240 240">
+        <defs>
+          <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#5eead4"/>
+            <stop offset="50%" stop-color="#a78bfa"/>
+            <stop offset="100%" stop-color="#f472b6"/>
+          </linearGradient>
+          <filter id="glow">
+            <feGaussianBlur stdDeviation="6" result="b"/>
+            <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+          </filter>
+        </defs>
+        <circle class="ring-track" cx="120" cy="120" r="104"/>
+        <circle class="ring-fill" id="ring-fill" cx="120" cy="120" r="104"
+                stroke="url(#grad)" filter="url(#glow)"/>
+        <g class="orbit">
+          <circle class="sat" r="5" fill="#5eead4"/>
+        </g>
+      </svg>
+      <div class="pct">
+        <b id="pct-num">0</b><i>%</i>
+      </div>
+      <div class="scan-label" id="scan-label">Preparing scan…</div>
+      <div class="steps">
+        <div class="step" data-at="3"><i></i>System info</div>
+        <div class="step" data-at="6"><i></i>PC profile</div>
+        <div class="step" data-at="10"><i></i>Processes</div>
+        <div class="step" data-at="22"><i></i>Debugger</div>
+        <div class="step" data-at="32"><i></i>Antivirus</div>
+        <div class="step" data-at="40"><i></i>EXE / DLL scan</div>
+        <div class="step" data-at="74"><i></i>Game modules</div>
+        <div class="step" data-at="84"><i></i>Verdict</div>
+        <div class="step" data-at="97"><i></i>Upload</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= RESULT SCREEN ================= -->
+  <section class="screen" id="screen-result">
+    <div class="result-badge" id="r-badge">
+      <svg viewBox="0 0 24 24" width="52" height="52"><path id="r-icon"
+        fill="currentColor" d="M12 2l8 3v6c0 5-3.4 9.4-8 11-4.6-1.6-8-6-8-11V5l8-3zm-1 13.4l5.3-5.3-1.4-1.4L11 12.6l-1.9-1.9-1.4 1.4L11 15.4z"/></svg>
+    </div>
+    <h2 id="r-title">Scan complete</h2>
+    <p class="sub" id="r-sub">Your report has been uploaded</p>
+
+    <div class="result-stats">
+      <div class="rs"><b id="r-findings">0</b><span>findings</span></div>
+      <div class="rs"><b id="r-serious">0</b><span>serious</span></div>
+      <div class="rs"><b id="r-score">0</b><span>score</span></div>
+    </div>
+
+    <div class="error" id="r-error" hidden></div>
+
+    <div class="closing" id="r-closing" hidden>
+      Closing in <b id="r-count">4</b>…
+    </div>
+    <button class="btn primary" id="btn-exit" hidden>Close</button>
+  </section>
+
+</main>
+
+<script src="loader.js"></script>
+</body>
+</html>

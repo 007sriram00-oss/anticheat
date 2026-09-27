@@ -1,0 +1,28 @@
+﻿# Node dependencies
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Database & runtime files
+portal/data/*.db
+portal/data/*.db-wal
+portal/data/*.db-shm
+
+# .NET build output
+**/obj/
+**/bin/Debug/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# IDE files
+.vs/
+.vscode/
+.idea/
+
+# OS files
+Thumbs.db
+Desktop.ini
+.DS_Store

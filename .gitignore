@@ -19,6 +19,7 @@ portal/data/*.db-shm
 # .NET build output
 **/obj/
 **/bin/Debug/
+**/bin/publish/
 **/win-x64/
 agent/publish/
 portal/agent/*.exe

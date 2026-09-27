@@ -726,15 +726,19 @@ function paintReport() {
   const dllFiles = files.filter((f) => f.kind === 'dll' || f.kind === 'sys');
   const byKind = (k) => findings.filter((f) => (f.kind || f.category) === k);
   const ACT_KINDS = ['accounts', 'recording'];
+  const BRUTAL_KINDS = ['string-finder', 'event-log', 'pc-log', 'integrity', 'kernel', 'driver'];
+  const brutalFindings = findings.filter((f) => BRUTAL_KINDS.includes(f.kind || f.category));
   const other = findings.filter((f) =>
     !['exe', 'dll', 'process', 'antivirus', 'ai'].includes(f.kind || f.category) &&
-    !ACT_KINDS.includes(f.kind || f.category));
+    !ACT_KINDS.includes(f.kind || f.category) &&
+    !BRUTAL_KINDS.includes(f.kind || f.category));
   const aiFindings = findings.filter((f) => (f.kind || f.category) === 'ai');
   const sys = r.system || {};
   const hasProfile = 'bootTime' in sys || 'gpu' in sys || Array.isArray(sys.accounts);
 
   const railItems = [
     { key: 'overview', label: 'Overview', ic: 'i-grid', count: findings.length, cls: '' },
+    { key: 'brutal', label: 'Brutal Finder', ic: 'i-xoct', count: brutalFindings.length, cls: brutalFindings.length ? 'k-red' : 'k-blue' },
     { key: 'exe', label: 'EXE files', ic: 'i-zap', count: exeFiles.length + byKind('exe').length, cls: 'k-red' },
     { key: 'dll', label: 'DLL files', ic: 'i-db', count: dllFiles.length + byKind('dll').length, cls: 'k-amber' },
     { key: 'processes', label: 'Processes', ic: 'i-cpu', count: byKind('process').length, cls: 'k-blue' },
@@ -850,8 +854,41 @@ function paintReport() {
         ${defrow('i-fingerprint', 'Signal basis', esc(aiOpinion.evidence || '—'), true)}
       </div>` : emptyBlock('No analysis opinion — rebuild the agent to include it', 'i-spark')}`;
 
+  /* ---- brutal finder pane */
+  const secureBootVal = sys.secureBoot || (r.summary && r.summary.secureBoot ? 'Enabled' : (r.summary && r.summary.secureBoot === false ? 'Disabled' : '—'));
+  const testsigningVal = sys.testsigning || (r.summary && r.summary.testsigning ? 'Enabled' : 'Disabled');
+  const evStatus = sys.eventLogStatus || (r.summary && r.summary.eventLogAnomalies ? `${r.summary.eventLogAnomalies} Anomalies` : 'Normal');
+
+  const paneBrutal = `
+    <div class="card-title" style="margin-bottom:12px">Brutal Finder — Deep Forensics & String Search</div>
+    <div class="av-hero ${secureBootVal === 'Enabled' ? 'on' : 'off'}">
+      <div class="av-hero-icon">${secureBootVal === 'Enabled' ? '🛡️' : '⚠️'}</div>
+      <div>
+        <b>Secure Boot: ${esc(secureBootVal)} · Testsigning: ${esc(testsigningVal)}</b>
+        <span>${secureBootVal === 'Enabled'
+          ? 'UEFI Secure Boot is actively verifying kernel bootloaders.'
+          : 'Secure Boot is DISABLED — vulnerable driver mappers (kdmapper) and DSE bypasses can run freely.'}</span>
+      </div>
+    </div>
+    <div class="deflist" style="margin-top:10px">
+      ${defrow('i-shield', 'Secure Boot', `<span class="pill ${secureBootVal === 'Enabled' ? 'green' : 'red'}"><i></i>${esc(secureBootVal)}</span>`)}
+      ${defrow('i-lock', 'Testsigning Mode', `<span class="pill ${testsigningVal.includes('Enabled') ? 'red' : 'green'}"><i></i>${esc(testsigningVal)}</span>`)}
+      ${defrow('i-server', 'Windows Event Logs', esc(evStatus))}
+      ${defrow('i-search', 'String Finder Hits', String(r.summary?.stringFinderHits || 0))}
+      ${defrow('i-clock', 'Prefetch Cheat Executions', String(r.summary?.prefetchHits || 0))}
+      ${defrow('i-db', 'BAM Historical Executions', String(r.summary?.bamHits || 0))}
+      ${defrow('i-cpu', 'Suspicious Drivers', String(r.summary?.suspiciousDrivers || 0))}
+    </div>
+    <div style="height:14px"></div>
+    <div class="card-title" style="margin-bottom:10px">Forensic Detections (${brutalFindings.length})</div>
+    ${brutalFindings.length
+      ? `<div class="findings">${brutalFindings.map(findingItem).join('')}</div>`
+      : emptyBlock('No cheat strings, event log wiping, or kernel bypasses detected', 'i-check')}
+  `;
+
   const panes = {
     overview: paneOverview,
+    brutal: paneBrutal,
     exe: filePane(byKind('exe'), exeFiles, 'No EXE files flagged — all scanned executables verified'),
     dll: filePane(byKind('dll'), dllFiles, 'No DLL files flagged — no unauthorized libraries found'),
     processes: byKind('process').length

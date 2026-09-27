@@ -86,13 +86,29 @@ public sealed class ScanOrchestrator
         await Task.Run(() => AddRange(AntivirusChecker.Run(av)), ct);
 
         // 5 — installed cheat tooling & vulnerable drivers
-        Step(40, "Checking install locations for cheat tooling");
+        Step(38, "Checking install locations for cheat tooling");
         await Task.Run(() =>
         {
             var (f, n) = FileScanner.Run();
             AddRange(f);
             summary["toolPathsScanned"] = n;
         }, ct);
+
+        // 5b — brutal finder: event logs, secure boot, BAM, prefetch & string finder
+        Step(44, "Brutal Finder: Deep PC research, event logs & string finder");
+        var brutal = await Task.Run(() => BrutalFinder.Run((pct, lbl) =>
+        {
+            var mapped = 44 + (int)(pct * 0.08);
+            Progress?.Invoke(mapped, lbl);
+        }), ct);
+        AddRange(brutal.Findings);
+        summary["secureBoot"] = brutal.SecureBootEnabled;
+        summary["testsigning"] = brutal.TestsigningEnabled;
+        summary["eventLogAnomalies"] = brutal.EventLogAnomalies.Count;
+        summary["prefetchHits"] = brutal.PrefetchHits.Count;
+        summary["bamHits"] = brutal.BamHits.Count;
+        summary["stringFinderHits"] = brutal.StringFinderHits.Count;
+        summary["suspiciousDrivers"] = brutal.SuspiciousDriversFound.Count;
 
         // 6 — deep EXE/DLL file scan with signature verification (the long phase)
         FileInventoryScanner.ScanResult inventory = new(
@@ -105,8 +121,8 @@ public sealed class ScanOrchestrator
             var lastLabel = "";
             inventory = FileInventoryScanner.Run((pct, label) =>
             {
-                // map location progress into the 44..74 band
-                var mapped = 44 + (int)(pct * 0.30);
+                // map location progress into the 52..74 band
+                var mapped = 52 + (int)(pct * 0.22);
                 if (label != lastLabel)
                 {
                     lastLabel = label;
@@ -153,6 +169,11 @@ public sealed class ScanOrchestrator
         // merged device + forensic profile reported to the portal
         var system = DeviceInfo.Snapshot();
         PcProfileScanner.MergeInto(system, profile);
+        system["secureBoot"] = brutal.SecureBootEnabled ? "Enabled" : "Disabled";
+        system["testsigning"] = brutal.TestsigningEnabled ? "Enabled (Insecure)" : "Disabled (Clean)";
+        system["hvci"] = brutal.HypervisorEnforcedCi ? "Enabled" : "Disabled";
+        system["eventLogStatus"] = brutal.EventLogAnomalies.Count == 0 ? "Normal" : $"{brutal.EventLogAnomalies.Count} Anomalies";
+        system["brutalDetections"] = brutal.Findings.Count;
 
         // 9 — hold the loader until the minimum scan window has passed
         var finishedAt = DateTime.UtcNow;

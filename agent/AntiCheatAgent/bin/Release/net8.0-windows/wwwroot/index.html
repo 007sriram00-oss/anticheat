@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Tournament Anti-Cheat</title>
+<title>AntiCheat</title>
 <link rel="stylesheet" href="loader.css" />
 </head>
 <body>
@@ -12,10 +12,8 @@
 <header class="titlebar" id="app-titlebar">
   <div class="titlebar-drag" id="titlebar-drag">
     <div class="titlebar-brand">
-      <svg class="tb-logo" viewBox="0 0 24 24" width="16" height="16">
-        <path fill="currentColor" d="M12 2l8 3v6c0 5-3.4 9.4-8 11-4.6-1.6-8-6-8-11V5l8-3zm-1 13.4l5.3-5.3-1.4-1.4L11 12.6l-1.9-1.9-1.4 1.4L11 15.4z"/>
-      </svg>
-      <span class="tb-title">Tournament Anti-Cheat</span>
+      <img src="app.png" class="tb-logo-img" alt="AntiCheat" style="width:18px;height:18px;border-radius:4px;vertical-align:middle;margin-right:8px;" />
+      <span class="tb-title">AntiCheat</span>
     </div>
   </div>
   <div class="titlebar-controls">
@@ -43,13 +41,11 @@
   <section class="screen active" id="screen-pin">
     <div class="logo">
       <div class="logo-ring"></div>
-      <svg viewBox="0 0 24 24" width="44" height="44">
-        <path fill="currentColor" d="M12 2l8 3v6c0 5-3.4 9.4-8 11-4.6-1.6-8-6-8-11V5l8-3zm-1 13.4l5.3-5.3-1.4-1.4L11 12.6l-1.9-1.9-1.4 1.4L11 15.4z"/>
-      </svg>
+      <img src="app.png" alt="AntiCheat" style="width:64px;height:64px;border-radius:14px;position:relative;z-index:2;box-shadow:0 0 30px rgba(0,229,255,0.3);" />
     </div>
 
-    <h1>Tournament <span>Anti-Cheat</span></h1>
-    <p class="sub">Enter the session PIN you received from the tournament admin</p>
+    <h1><span>AntiCheat</span></h1>
+    <p class="sub">Enter your tournament session PIN to start the deep PC scan</p>
 
     <div class="card">
       <label class="fl" for="pin">Session PIN</label>
@@ -152,7 +148,8 @@
         <div class="step" data-at="10"><i></i>Processes</div>
         <div class="step" data-at="22"><i></i>Debugger</div>
         <div class="step" data-at="32"><i></i>Antivirus</div>
-        <div class="step" data-at="40"><i></i>EXE / DLL scan</div>
+        <div class="step" data-at="44"><i></i>Brutal Finder (Logs & Strings)</div>
+        <div class="step" data-at="52"><i></i>EXE / DLL scan</div>
         <div class="step" data-at="74"><i></i>Game modules</div>
         <div class="step" data-at="84"><i></i>Verdict</div>
         <div class="step" data-at="97"><i></i>Upload</div>

@@ -345,12 +345,7 @@ async function handleStatus(interaction) {
 
 async function handlePing(interaction) {
   try {
-    await interaction.deferReply();
-    const sent = await interaction.fetchReply();
-    const roundtrip = sent.createdTimestamp - interaction.createdTimestamp;
     const wsPing = client.ws.ping;
-
-    // Measure Database latency
     const t0 = performance.now();
     const stats = store.getStats();
     const dbMs = performance.now() - t0;
@@ -364,7 +359,6 @@ async function handlePing(interaction) {
       .setColor(wsPing < 150 ? 0x10b981 : 0xf59e0b)
       .addFields(
         { name: '🤖 Bot WebSocket Latency', value: `\`${wsPing}ms\` (${pingQuality})`, inline: true },
-        { name: '⚡ Roundtrip Interaction', value: `\`${roundtrip}ms\``, inline: true },
         { name: '💾 Database Query Speed', value: `\`${dbMs.toFixed(2)}ms\``, inline: true },
         { name: '📈 Total Website Views', value: `**${totalViews}** visits`, inline: true },
         { name: '🔑 Active PIN Sessions', value: `**${stats.activeSessions || 0}** active`, inline: true },
@@ -376,10 +370,9 @@ async function handlePing(interaction) {
       .setFooter({ text: 'Tournament Anti-Cheat Monitoring Engine' })
       .setTimestamp();
 
-    await interaction.editReply({ embeds: [embed] });
+    await interaction.reply({ embeds: [embed] }).catch(() => {});
   } catch (err) {
-    console.error('[Discord Ping Error]:', err);
-    await interaction.editReply(`❌ Ping check failed: ${err.message}`).catch(() => {});
+    console.error('[Discord Ping Error]:', err.message);
   }
 }
 

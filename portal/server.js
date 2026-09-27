@@ -151,7 +151,7 @@ app.use((req, res, next) => {
    the auth endpoints, the login page and static assets (no data in them).
    Unauthenticated API calls get 401; page loads bounce to the login page
    with a redirectTo so the user lands where they were headed. */
-const OPEN_PREFIXES = ['/api/agent', '/api/login', '/api/login-config', '/api/me', '/auth/', '/login.html', '/css/', '/js/', '/icons/', '/favicon'];
+const OPEN_PREFIXES = ['/api/agent', '/api/login', '/api/login-config', '/api/me', '/auth/', '/login.html', '/css/', '/js/', '/icons/', '/favicon', '/download', '/app-icon.png'];
 app.use((req, res, next) => {
   const p = req.path;
   if (OPEN_PREFIXES.some((x) => p === x || p.startsWith(x))) return next();
@@ -751,7 +751,10 @@ app.get('/api/login-config', (_req, res) => {
 const AGENT_CANDIDATES = [
   process.env.AGENT_FILE,
   path.join(__dirname, 'agent', 'TournamentAntiCheat-Agent.zip'),
+  path.join(__dirname, 'agent', 'AntiCheat-Agent.zip'),
+  path.join(__dirname, 'agent', 'AntiCheat.exe'),
   path.join(__dirname, 'agent', 'AntiCheatAgent.exe'),
+  path.join(__dirname, '..', 'agent', 'AntiCheatAgent', 'bin', 'publish', 'AntiCheatAgent.exe'),
   path.join(__dirname, '..', 'agent', 'AntiCheatAgent', 'bin', 'Release',
     'net8.0-windows', 'AntiCheatAgent.exe'),
 ].filter(Boolean);
@@ -765,8 +768,8 @@ app.get('/download/agent', (_req, res) => {
   }
   store.logEvent('info', 'download.agent', 'Agent package downloaded from the Download page', {});
   const name = AGENT_FILE.toLowerCase().endsWith('.zip')
-    ? 'TournamentAntiCheat-Agent.zip'
-    : 'TournamentAntiCheat-Setup.exe';
+    ? 'AntiCheat-Agent.zip'
+    : 'AntiCheat.exe';
   res.download(AGENT_FILE, name);
 });
 

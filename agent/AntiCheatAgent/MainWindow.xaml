@@ -3,13 +3,14 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
         xmlns:wv2="clr-namespace:Microsoft.Web.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf"
-        Title="Tournament Anti-Cheat"
+        Title="AntiCheat"
+        Icon="app.ico"
         Width="980" Height="700"
         MinWidth="800" MinHeight="580"
         WindowStyle="None"
         ResizeMode="CanResize"
-        Background="#06070F"
-        Foreground="#EEF1FF"
+        Background="#000000"
+        Foreground="#EEEEEE"
         WindowStartupLocation="CenterScreen">
     <shell:WindowChrome.WindowChrome>
         <shell:WindowChrome CaptionHeight="0"
@@ -19,10 +20,10 @@
                             UseAeroCaptionButtons="False" />
     </shell:WindowChrome.WindowChrome>
     <Border x:Name="RootBorder"
-            Background="#06070F"
-            BorderBrush="#20FFFFFF"
+            Background="#000000"
+            BorderBrush="#181818"
             BorderThickness="1">
         <wv2:WebView2 x:Name="WebView"
-                      DefaultBackgroundColor="#06070F" />
+                      DefaultBackgroundColor="#000000" />
     </Border>
 </Window>

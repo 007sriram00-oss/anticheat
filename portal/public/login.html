@@ -317,18 +317,18 @@
         <span id="banner-text"></span>
       </div>
 
-      <form id="login-form" novalidate>
+      <form id="login-form" novalidate autocomplete="off">
         <div class="field">
           <label for="login-email">Email or Username</label>
-          <input class="inp" id="login-email" name="email" type="text"
-                 placeholder="Email or Username" autocomplete="username"
-                 autofocus spellcheck="false" required />
+          <input class="inp" id="login-email" name="portal_user" type="text"
+                 placeholder="Email or Username" autocomplete="off"
+                 spellcheck="false" required />
         </div>
 
         <div class="field">
           <label for="login-password">Password</label>
-          <input class="inp has-eye" id="login-password" name="password" type="password"
-                 placeholder="Password" autocomplete="current-password" required />
+          <input class="inp has-eye" id="login-password" name="portal_pass" type="password"
+                 placeholder="Password" autocomplete="new-password" required />
           <button class="eye" id="eye-btn" type="button" aria-label="Show password">
             <svg id="eye-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
@@ -433,6 +433,14 @@
     .then((r) => (r.ok ? r.json() : null))
     .then((d) => { if (d && d.authenticated && d.user) location.replace(redirectTo); })
     .catch(() => {});
+
+  // Prevent browser from auto-filling old saved 'admin' credentials
+  $('login-email').value = '';
+  $('login-password').value = '';
+  setTimeout(() => {
+    if ($('login-email')) $('login-email').value = '';
+    if ($('login-password')) $('login-password').value = '';
+  }, 100);
 
 
 
